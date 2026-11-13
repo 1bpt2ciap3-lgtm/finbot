@@ -1,0 +1,842 @@
+
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RDA Diário - Batalhão (por Companhia e Operação)</title>
+  <style>
+    :root {
+      --bg:#f5f5f5; --card:#fff; --muted:#666; --border:#ddd;
+      --wa:#25D366; --danger:#e74c3c; --primary:#1f6feb;
+    }
+    body { font-family: Arial, sans-serif; margin:0; background:var(--bg); }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 12px; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    h1 { margin:0 0 8px; font-size: 20px; text-align:center; }
+    .sub { text-align:center; color:var(--muted); font-size: 13px; margin-bottom: 12px; }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    @media (max-width:720px) { .grid { grid-template-columns: 1fr; } }
+    label { font-weight: 700; display:block; margin: 8px 0 4px; }
+    input, textarea, select {
+      width:100%; box-sizing:border-box; padding:10px; border-radius:10px;
+      border:1px solid var(--border); background:#fff; font-size: 15px;
+    }
+    textarea { min-height: 84px; resize: vertical; }
+    .section-title {
+      margin: 14px 0 8px; padding-top: 12px; border-top:1px solid var(--border);
+      font-weight: 800; font-size: 16px;
+    }
+    .btnrow { display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px; }
+    button {
+      border:none; border-radius: 12px; padding: 12px 14px; font-size: 16px;
+      cursor:pointer; flex:1; min-width: 200px;
+    }
+    .wa { background: var(--wa); color:#fff; }
+    .copy { background: var(--primary); color:#fff; }
+    .clear { background: var(--danger); color:#fff; }
+    .hint { color:var(--muted); font-size: 12px; margin-top: 8px; }
+    .pill { display:inline-block; padding:4px 10px; border:1px solid var(--border); border-radius:999px; font-size:12px; color:var(--muted); }
+    .loc-card { border:1px dashed var(--border); border-radius:12px; padding:10px; margin-top:10px; }
+    .loc-head { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .linkbtn { background: transparent; color: var(--primary); padding: 8px 10px; border:1px solid var(--border); border-radius: 10px; cursor:pointer; font-size: 14px; }
+    .toast {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: 16px; background: rgba(0,0,0,.85); color:#fff;
+      padding:10px 12px; border-radius: 12px; font-size: 14px;
+      display:none; z-index: 9999;
+    }
+    .home { text-align:center; }
+    .bigbtn { display:block; width:100%; min-width:0; margin:12px 0; padding:22px 14px; font-size:20px; font-weight:700; border-radius:14px; }
+    .bigbtn.novo { background: var(--primary); color:#fff; }
+    .bigbtn.edit { background:#fff; color:var(--primary); border:2px solid var(--primary); }
+    .editbanner { background:#fff7e0; border:1px solid #f0c36d; border-radius:10px; padding:10px 12px; margin:8px 0 4px; font-size:14px; }
+    .sentbox { border:2px solid var(--wa); background:#eafbf0; border-radius:12px; padding:12px; margin-top:12px; display:none; text-align:center; }
+    .sentbox .code { font-size:30px; letter-spacing:5px; font-weight:800; font-family: monospace; margin:6px 0; }
+    .sentbox .st { font-size:14px; margin-top:6px; }
+    .recent { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+    .recent button { flex:none; min-width:0; padding:8px 10px; font-size:13px; background:#eef3ff; color:var(--primary); border:1px solid #c9d8ff; border-radius:10px; }
+    .backrow { margin-bottom:6px; }
+    .backrow .linkbtn { flex:none; min-width:0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <!-- TELA INICIAL -->
+    <div class="card home" id="homeCard">
+      <h1>RDA Diário — Batalhão</h1>
+      <div class="sub">O que você quer fazer?</div>
+      <button class="bigbtn novo" type="button" onclick="irNovo()">Novo RDA</button>
+      <button class="bigbtn edit" type="button" onclick="irEditar()">Editar resultado</button>
+      <div class="hint">Para editar, use o <b>código</b> que aparece na tela depois do envio. A edição só é possível por <b>24 horas</b> após o envio.</div>
+    </div>
+
+    <!-- BUSCAR RESULTADO PARA EDITAR -->
+    <div class="card" id="editCard" style="display:none;">
+      <h1>Editar resultado</h1>
+      <div class="sub">Informe o código do resultado que apareceu depois do envio.</div>
+      <label for="edCodigo">Código do resultado</label>
+      <input id="edCodigo" type="text" autocapitalize="characters" autocomplete="off" maxlength="12" placeholder="Ex.: K7QH2M"/>
+      <div id="edRecentesWrap" style="display:none;">
+        <div class="hint" style="margin-top:10px;">Enviados neste aparelho (toque para usar o código):</div>
+        <div class="recent" id="edRecentes"></div>
+      </div>
+      <div class="btnrow">
+        <button class="copy" id="btnBuscar" type="button" onclick="buscarEdicao()">Buscar resultado</button>
+        <button class="linkbtn" type="button" onclick="voltarInicio()">Voltar</button>
+      </div>
+      <div class="hint" id="edMsg" style="font-size:14px;"></div>
+    </div>
+
+    <!-- FORMULÁRIO (novo envio ou edição) -->
+    <div class="card" id="appCard" style="display:none;">
+      <div class="backrow"><button class="linkbtn" type="button" onclick="voltarInicio()">← Início</button></div>
+      <div class="editbanner" id="editBanner" style="display:none;"></div>
+      <h1>RDA Diário — Batalhão</h1>
+      <div class="sub">Selecione a companhia e a operação (aba) → preencha → compartilhe no WhatsApp (Android/iPhone).</div>
+
+      <div class="grid">
+        <div>
+          <label for="companhia">Companhia</label>
+          <select id="companhia">
+            <option value="1ª Cia">1ª Cia</option>
+            <option value="2ª Cia">2ª Cia</option>
+            <option value="3ª Cia">3ª Cia</option>
+            <option value="4ª Cia">4ª Cia</option>
+            <option value="PTT">PTT</option>
+          </select>
+        </div>
+        <div>
+          <label for="operacao">Operação / Aba</label>
+          <select id="operacao"></select>
+          <div class="hint"><span class="pill" id="ciaPill">2ª Cia</span></div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <label for="data">Data</label>
+          <input type="date" id="data"/>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <label for="turno">Turno</label>
+          <input type="text" id="turno" placeholder="Ex.: Manhã / Tarde / Noite"/>
+        </div>
+        <div>
+          <label for="responsavel">Responsável</label>
+          <input type="text" id="responsavel" placeholder="Nome / Posto-Grad."/>
+        </div>
+      </div>
+
+      <label for="pelotao">Pelotão</label>
+      <input type="text" id="pelotao" placeholder="Ex.: 1º Pel / 2º Pel / 3º Pel (ou todos que participaram)"/>
+
+      <label for="contato">Contato</label>
+      <input type="text" id="contato" placeholder="Telefone / rádio / e-mail"/>
+
+      <div id="locaisWrap" style="display:none;">
+        <div class="section-title">Dados da Operação</div>
+        <div class="hint">Adicione um ou mais locais (quando a aba exigir).</div>
+        <div id="locaisList"></div>
+        <div class="btnrow" style="margin-top:10px;">
+          <button class="copy" type="button" onclick="addLocal()">Adicionar local</button>
+        </div>
+      </div>
+
+      <div id="formWrap"></div>
+
+      <div class="section-title">Ocorrências</div>
+      <textarea id="ocorrencias" placeholder="Descreva aqui as ocorrências, observações e detalhes relevantes..."></textarea>
+
+      <div class="btnrow" id="rowNovo">
+        <button class="wa" type="button" onclick="shareWhats()">Compartilhar (WhatsApp)</button>
+        <button class="copy" type="button" onclick="copyText()">Copiar texto</button>
+        <button class="clear" type="button" onclick="clearAll()">Limpar tudo</button>
+      </div>
+      <div class="btnrow" id="rowEdit" style="display:none;">
+        <button class="copy" type="button" onclick="salvarEdicao(false)">Salvar edição</button>
+        <button class="wa" type="button" onclick="salvarEdicao(true)">Salvar e compartilhar (WhatsApp)</button>
+        <button class="clear" type="button" onclick="cancelarEdicao()">Cancelar edição</button>
+      </div>
+
+      <div class="sentbox" id="sentBox">
+        <div id="sentTitle"><b>Enviado!</b> Código deste resultado:</div>
+        <div class="code" id="sentCode"></div>
+        <button class="copy" type="button" style="flex:none;min-width:0;padding:8px 14px;font-size:14px;" onclick="copiarCodigo()">Copiar código</button>
+        <div class="st" id="sentStatus"></div>
+        <div class="hint">Guarde este código. Com ele você consegue editar o resultado depois (o código <b>não</b> vai no texto do WhatsApp).</div>
+      </div>
+
+      <div class="hint">iPhone: “Compartilhar” é o mais confiável. Se o WhatsApp abrir sem texto, ele já ficou copiado — é só colar.</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+
+  <iframe name="gs_sink" style="display:none;"></iframe>
+  <form id="gsForm" target="gs_sink" method="POST" style="display:none;">
+    <input name="token" />
+    <input name="data" />
+    <input name="companhia" />
+    <input name="operacao" />
+    <input name="turno" />
+    <input name="pelotao" />
+    <input name="responsavel" />
+    <input name="contato" />
+    <textarea name="ocorrencias"></textarea>
+    <textarea name="payload"></textarea>
+  </form>
+
+<script>
+const SCHEMA = {"RDA":{"company":"2ª Cia","hasLoc":false,"sections":{"Produtividade":[{"label":"Quantidade de ocorrências atendidas","id":"quantidade_de_ocorrencias_atendidas","type":"number"},{"label":"Quantidade de pontos de estacionamentos (Visibilidade)","id":"quantidade_de_pontos_de_estacionamentos_visibilidade","type":"number"},{"label":"APOIO AO CPC","id":"apoio_ao_cpc","type":"number"},{"label":"APOIO AO CPM","id":"apoio_ao_cpm","type":"number"},{"label":"APOIO AO CPI","id":"apoio_ao_cpi","type":"number"},{"label":"APOIO AO CPRv","id":"apoio_ao_cprv","type":"number"}],"Mapa Força":[{"label":"Efetivo Empregado (incluindo todos eventos da Cia.)","id":"efetivo_empregado_incluindo_todos_eventos_da_cia","type":"number"},{"label":"Viaturas (04 Rodas) Empregadas (inclusive Guinchos e BCM)","id":"viaturas_04_rodas_empregadas_inclusive_guinchos_e_bcm","type":"number"},{"label":"Viaturas (02 Rodas) Empregadas","id":"viaturas_02_rodas_empregadas","type":"number"}],"Ocorrências atendidas":[{"label":"Atendimentos sociais (Parto, mau súbito, condução P.S)","id":"atendimentos_sociais_parto_mau_subito_conducao_p_s","type":"number"},{"label":"Total de Sinistro Sem Vítima (L09)","id":"total_de_sinistro_sem_vitima_l09","type":"number"},{"label":"Total de Sinistro Com Atropelamento (L07)","id":"total_de_sinistro_com_atropelamento_l07","type":"number"},{"label":"Total de Sinistro  Com Vítima (L08)","id":"total_de_sinistro_com_vitima_l08","type":"number"},{"label":"Total de Sinistro  Envolvendo Motocicleta (L12) (não inlcuir atropelamento)","id":"total_de_sinistro_envolvendo_motocicleta_l12_nao_inlcuir_atropelamento","type":"number"},{"label":"Total de Sinistro  de Queda de Pessoa (M15)","id":"total_de_sinistro_de_queda_de_pessoa_m15","type":"number"},{"label":"Total de Sinistros de trânsito com vítima (exceto fatal)","id":"total_de_sinistros_de_transito_com_vitima_exceto_fatal","type":"number"},{"label":"Quantidade de Vítimas (exceto fatal)","id":"quantidade_de_vitimas_exceto_fatal","type":"number"},{"label":"Total de Sinistro  de trânsito com vitima Fatal","id":"total_de_sinistro_de_transito_com_vitima_fatal","type":"number"},{"label":"Quantidade de Vítima de Fatal","id":"quantidade_de_vitima_de_fatal","type":"number"}],"Remoção de veículos":[{"label":"Motocicleta Removida","id":"motocicleta_removida","type":"number"},{"label":"Automóvel Removido (Caminhonete, caminhoneta e utilitários)","id":"automovel_removido_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão Removido","id":"caminhao_removido","type":"number"},{"label":"Ônibus Removido","id":"onibus_removido","type":"number"},{"label":"Ciclomotor Removido","id":"ciclomotor_removido","type":"number"},{"label":"Outros Veículos Removidos","id":"outros_veiculos_removidos","type":"number"},{"label":"Total de Veículos removidos","id":"total_de_veiculos_removidos","type":"number"}],"Fiscalização de Veículos":[{"label":"Motocicleta fiscalizada","id":"motocicleta_fiscalizada","type":"number"},{"label":"Automóvel fiscalizado (Caminhonete, caminhoneta e utilitários)","id":"automovel_fiscalizado_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão fiscalizado","id":"caminhao_fiscalizado","type":"number"},{"label":"Ônibus fiscalizado","id":"onibus_fiscalizado","type":"number"},{"label":"Ciclomotor fiscalizado","id":"ciclomotor_fiscalizado","type":"number"},{"label":"Autopropelido fiscalizado","id":"autopropelido_fiscalizado","type":"number"},{"label":"Bicicleta Elétrica  fiscalizada","id":"bicicleta_eletrica_fiscalizada","type":"number"},{"label":"Outros veículos fiscalizados","id":"outros_veiculos_fiscalizados","type":"number"},{"label":"Total de veículos fiscalizados","id":"total_de_veiculos_fiscalizados","type":"number"}],"Condutores":[{"label":"Condutores Fiscalizados","id":"condutores_fiscalizados","type":"number"},{"label":"Condutores Autuados","id":"condutores_autuados","type":"number"}],"Autuações de Trânsito":[{"label":"Auto de Infração Confeccionado DETRAN (ESTADO)","id":"auto_de_infracao_confeccionado_detran_estado","type":"number"},{"label":"Auto de Infração DSV Confeccionados (MUNICÍPIO)","id":"auto_de_infracao_dsv_confeccionados_municipio","type":"number"},{"label":"Auto de Infração e Imposição de Penalidade - Produtos Perigosos (AIIPPP)","id":"auto_de_infracao_e_imposicao_de_penalidade_produtos_perigosos_aiippp","type":"number"},{"label":"Outras Autuações","id":"outras_autuacoes","type":"number"},{"label":"Total de Autos de Infração confeccionados","id":"total_de_autos_de_infracao_confeccionados","type":"number"}],"Arla 32":[{"label":"Teste de qualidade do ARLA 32 (análise da ureia)","id":"teste_de_qualidade_do_arla_32_analise_da_ureia","type":"number"},{"label":"Adulteração do ARLA 32 - infração de trânsito","id":"adulteracao_do_arla_32_infracao_de_transito","type":"number"},{"label":"Modificação do sistema do ARLA 32 (chip, fusível, etc)","id":"modificacao_do_sistema_do_arla_32_chip_fusivel_etc","type":"number"}],"Fiscalização de condutores":[{"label":"Quantidade de Pessoas Abordadas","id":"quantidade_de_pessoas_abordadas","type":"number"},{"label":"Quantidade de condutores submetidos ao teste do etilômetro","id":"quantidade_de_condutores_submetidos_ao_teste_do_etilometro","type":"number"},{"label":"Quantidade de condutores que se recusaram ao teste do etilômetro (art.165-A do CTB)","id":"quantidade_de_condutores_que_se_recusaram_ao_teste_do_etilometro_art_165_a_do_ctb","type":"number"},{"label":"Quantidade de condutores dirigindo sob a influência de álcool ou de qualquer outra substância psicoativa que determine dependência (art. 165 do CTB)","id":"quantidade_de_condutores_dirigindo_sob_a_influencia_de_alcool_ou_de_qualquer_outra_substancia_psicoativa_que_determine_dependencia_art_165_do_ctb","type":"number"},{"label":"Quantidade de condutores embriagados autuados em flagrante - (art. 306 do CTB)","id":"quantidade_de_condutores_embriagados_autuados_em_flagrante_art_306_do_ctb","type":"number"},{"label":"Quantidade de condutores alcoolizados envolvidos em Sinistro de trânsito sem vitima","id":"quantidade_de_condutores_alcoolizados_envolvidos_em_sinistro_de_transito_sem_vitima","type":"number"},{"label":"Quantidade de condutores alcoolizados envolvidos em Sinistro de trânsito com vítimas exceto vítimas fatais","id":"quantidade_de_condutores_alcoolizados_envolvidos_em_sinistro_de_transito_com_vitimas_exceto_vitimas_fatais","type":"number"},{"label":"Quantidade de condutores alcoolizados envolvidos em Sinistro de trânsito com vítimas fatais","id":"quantidade_de_condutores_alcoolizados_envolvidos_em_sinistro_de_transito_com_vitimas_fatais","type":"number"}],"Campanhas Educativas":[{"label":"Quantidade de ODS-E","id":"quantidade_de_ods_e","type":"number"},{"label":"Quantidade de Pessoas conscientizadas na ODS-E","id":"quantidade_de_pessoas_conscientizadas_na_ods_e","type":"number"},{"label":"Quantidade de Palestras à Idosos","id":"quantidade_de_palestras_a_idosos","type":"number"},{"label":"Quantidade de Idosos conscientizados","id":"quantidade_de_idosos_conscientizados","type":"number"},{"label":"Quantidade de Palestras à Motoristas de ônibus","id":"quantidade_de_palestras_a_motoristas_de_onibus","type":"number"},{"label":"Quantidade de Motoristas de ônibus conscientizados","id":"quantidade_de_motoristas_de_onibus_conscientizados","type":"number"},{"label":"Quantidade de campanhas com motociclistas","id":"quantidade_de_campanhas_com_motociclistas","type":"number"},{"label":"Quantidade de motociclistas conscientizados","id":"quantidade_de_motociclistas_conscientizados","type":"number"},{"label":"Quantidade de Operação Travessia Segura (escolar)","id":"quantidade_de_operacao_travessia_segura_escolar","type":"text"},{"label":"Quantidade de Operação de Conscientização de Pedestres","id":"quantidade_de_operacao_de_conscientizacao_de_pedestres","type":"text"}],"Eventos":[{"label":"Quantidade Show/ similares","id":"quantidade_show_similares","type":"number"},{"label":"Total de Público (Show/similares)","id":"total_de_publico_show_similares","type":"number"},{"label":"Quantidade Futebol","id":"quantidade_futebol","type":"number"},{"label":"Total de Público Futebol","id":"total_de_publico_futebol","type":"number"},{"label":"Quantidade de Manifestações","id":"quantidade_de_manifestacoes","type":"number"},{"label":"Total de Manifestantes","id":"total_de_manifestantes","type":"number"},{"label":"Total de Público (Show/Futebol e similares)","id":"total_de_publico_show_futebol_e_similares","type":"number"}],"Ocorrências criminais":[{"label":"Nº de pessoas presas em flagrante (somente os que ficaram a disposição da justiça/ Inclusive Alcoolemia)","id":"no_de_pessoas_presas_em_flagrante_somente_os_que_ficaram_a_disposicao_da_justica_inclusive_alcoolemia","type":"number"},{"label":"Nº de menor sindicado","id":"no_de_menor_sindicado","type":"number"},{"label":"Nº de procurados da justiça recapturados","id":"no_de_procurados_da_justica_recapturados","type":"number"}],"Crimes":[{"label":"Furto","id":"furto","type":"number"},{"label":"Roubo","id":"roubo","type":"number"},{"label":"Receptação","id":"receptacao","type":"number"},{"label":"Porte de Drogas","id":"porte_de_drogas","type":"number"},{"label":"Tráfico de Entorpecentes","id":"trafico_de_entorpecentes","type":"number"},{"label":"Adulteração de Sinais","id":"adulteracao_de_sinais","type":"number"},{"label":"Apropriação Indébita","id":"apropriacao_indebita","type":"number"},{"label":"Estelionato","id":"estelionato","type":"number"},{"label":"Descaminho","id":"descaminho","type":"number"},{"label":"Contrabando","id":"contrabando","type":"number"},{"label":"Crime ambiental","id":"crime_ambiental","type":"number"},{"label":"Outros","id":"outros","type":"number"}],"Itens apreendidos":[{"label":"Quantidade de equipamentos eletrônicos apreendidos","id":"quantidade_de_equipamentos_eletronicos_apreendidos","type":"number"},{"label":"Quantidade de medicamentos apreendidos/similares","id":"quantidade_de_medicamentos_apreendidos_similares","type":"number"},{"label":"Quantidade de cigarros","id":"quantidade_de_cigarros","type":"number"},{"label":"Quantidade de armas de fogo apreendidas","id":"quantidade_de_armas_de_fogo_apreendidas","type":"number"},{"label":"Quantidade de veículos recuperados (furto, roubo, receptação, estelionato, apropriação indébita, auto localizado)","id":"quantidade_de_veiculos_recuperados_furto_roubo_receptacao_estelionato_apropriacao_indebita_auto_localizado","type":"text"},{"label":"Quantidade de cocaína apreendida (em Kg)","id":"quantidade_de_cocaina_apreendida_em_kg","type":"number"},{"label":"Quantidade de crack apreendido (em Kg)","id":"quantidade_de_crack_apreendido_em_kg","type":"number"},{"label":"Quantidade de maconha apreendida (em Kg)","id":"quantidade_de_maconha_apreendida_em_kg","type":"number"},{"label":"Quantidade de outros entorpecentes (em Kg/ Unidade)","id":"quantidade_de_outros_entorpecentes_em_kg_unidade","type":"number"},{"label":"Animais apreendidos","id":"animais_apreendidos","type":"number"},{"label":"Nº de BOPC´s Confeccionados (criminal e acidente de trânsito)","id":"no_de_bopc_s_confeccionados_criminal_e_acidente_de_transito","type":"number"}]}},"FIM DA LINHA":{"company":"2ª CiaPTran","hasLoc":true,"sections":{"Dados":[{"label":"LOCAL DA OPERACAO","id":"local_da_operacao","type":"text"},{"label":"BATALHÃO DE ÁREA / CPA","id":"batalhao_de_area_cpa","type":"text"},{"label":"OPERAÇÃO FIM DA LINHA","id":"operacao_fim_da_linha","type":"text"},{"label":"Quantidade de Operação","id":"quantidade_de_operacao","type":"text"},{"label":"Quantidade de ocorrências atendidas","id":"quantidade_de_ocorrencias_atendidas","type":"number"},{"label":"Quantidade de Pessoas abordadas","id":"quantidade_de_pessoas_abordadas","type":"number"},{"label":"Condutores Fiscalizados","id":"condutores_fiscalizados","type":"number"},{"label":"Condutores Autuados","id":"condutores_autuados","type":"number"},{"label":"Auto de Infração Confeccionado DETRAN (ESTADO)","id":"auto_de_infracao_confeccionado_detran_estado","type":"number"},{"label":"Auto de Infração Confeccionados DSV (MUNICÍPIO)","id":"auto_de_infracao_confeccionados_dsv_municipio","type":"number"},{"label":"Outras Autuações","id":"outras_autuacoes","type":"number"},{"label":"Total de Autos de Infração confeccionados","id":"total_de_autos_de_infracao_confeccionados","type":"number"},{"label":"Quantidade de condutores submetidos ao teste do etilômetro","id":"quantidade_de_condutores_submetidos_ao_teste_do_etilometro","type":"number"},{"label":"Quantidade de condutores que se recusaram ao teste do etilômetro (art.165-A do CTB)","id":"quantidade_de_condutores_que_se_recusaram_ao_teste_do_etilometro_art_165_a_do_ctb","type":"number"},{"label":"Quantidade de condutores dirigindo sob a influência de álcool ou de qualquer outra substância psicoativa que determine dependência (art. 165 do CTB)","id":"quantidade_de_condutores_dirigindo_sob_a_influencia_de_alcool_ou_de_qualquer_outra_substancia_psicoativa_que_determine_dependencia_art_165_do_ctb","type":"number"},{"label":"Quantidade de condutores embriagados autuados em flagrante - (art. 306 do CTB)","id":"quantidade_de_condutores_embriagados_autuados_em_flagrante_art_306_do_ctb","type":"number"},{"label":"Quantidade de Ônibus Fiscalizado","id":"quantidade_de_onibus_fiscalizado","type":"number"},{"label":"Quantidade de Ônibus Removido","id":"quantidade_de_onibus_removido","type":"number"},{"label":"Quantidade de Procurados da justiça Recapturados","id":"quantidade_de_procurados_da_justica_recapturados","type":"number"},{"label":"Quantidade de pessoas presas em flagrante (somente os que ficaram a disposição da justiça)","id":"quantidade_de_pessoas_presas_em_flagrante_somente_os_que_ficaram_a_disposicao_da_justica","type":"number"},{"label":"Quantidade de equipamentos eletrônicos apreendidos","id":"quantidade_de_equipamentos_eletronicos_apreendidos","type":"number"},{"label":"Quantidade de medicamentos apreendidos/similares","id":"quantidade_de_medicamentos_apreendidos_similares","type":"number"},{"label":"Quantidade de cigarros","id":"quantidade_de_cigarros","type":"number"},{"label":"Quantidade de armas de fogo apreendidas","id":"quantidade_de_armas_de_fogo_apreendidas","type":"number"},{"label":"Quantidade de cocaína apreendida (em Kg)","id":"quantidade_de_cocaina_apreendida_em_kg","type":"number"},{"label":"Quantidade de crack apreendido (em Kg)","id":"quantidade_de_crack_apreendido_em_kg","type":"number"},{"label":"Quantidade de maconha apreendida (em Kg)","id":"quantidade_de_maconha_apreendida_em_kg","type":"number"},{"label":"Quantidade de outros entorpecentes (em Kg/ Unidade)","id":"quantidade_de_outros_entorpecentes_em_kg_unidade","type":"number"},{"label":"Furto","id":"furto","type":"number"},{"label":"Roubo","id":"roubo","type":"number"},{"label":"Receptação","id":"receptacao","type":"number"},{"label":"Porte de Drogas","id":"porte_de_drogas","type":"number"},{"label":"Tráfico de Entorpecentes","id":"trafico_de_entorpecentes","type":"number"},{"label":"Adulteração de Sinais","id":"adulteracao_de_sinais","type":"number"},{"label":"Apropriação Indébita","id":"apropriacao_indebita","type":"number"},{"label":"Estelionato","id":"estelionato","type":"number"},{"label":"Descaminho","id":"descaminho","type":"number"},{"label":"Contrabando","id":"contrabando","type":"number"},{"label":"Crime ambiental","id":"crime_ambiental","type":"number"},{"label":"Outros","id":"outros","type":"number"}],"Dados do Guincho":[{"label":"Prefixo do Guincho","id":"prefixo_do_guincho","type":"text"},{"label":"Pátio","id":"patio","type":"text"},{"label":"Nome do Motorista","id":"nome_do_motorista","type":"text"}]}},"MECS":{"company":"2ª CiaPTran","hasLoc":true,"sections":{"Dados":[{"label":"LOCAL DA OPERACAO","id":"local_da_operacao","type":"text"},{"label":"BATALHÃO DE ÁREA / CPA","id":"batalhao_de_area_cpa","type":"text"},{"label":"OPERAÇÃO MECS","id":"operacao_mecs","type":"text"},{"label":"Quantidade de Operação","id":"quantidade_de_operacao","type":"text"},{"label":"Quantidade de Pessoas abordadas","id":"quantidade_de_pessoas_abordadas","type":"number"},{"label":"Condutores Fiscalizados","id":"condutores_fiscalizados","type":"number"},{"label":"Condutores Autuados","id":"condutores_autuados","type":"number"},{"label":"Auto de Infração Confeccionado DETRAN (ESTADO)","id":"auto_de_infracao_confeccionado_detran_estado","type":"number"},{"label":"Auto de Infração Confeccionados DSV (MUNICÍPIO)","id":"auto_de_infracao_confeccionados_dsv_municipio","type":"number"},{"label":"Outras Autuações","id":"outras_autuacoes","type":"number"},{"label":"Total de Autos de Infração confeccionados","id":"total_de_autos_de_infracao_confeccionados","type":"number"},{"label":"Quantidade de condutores submetidos ao teste do etilômetro","id":"quantidade_de_condutores_submetidos_ao_teste_do_etilometro","type":"number"},{"label":"Quantidade de condutores que se recusaram ao teste do etilômetro (art.165-A do CTB)","id":"quantidade_de_condutores_que_se_recusaram_ao_teste_do_etilometro_art_165_a_do_ctb","type":"number"},{"label":"Quantidade de condutores dirigindo sob a influência de álcool ou de qualquer outra substância psicoativa que determine dependência (art. 165 do CTB)","id":"quantidade_de_condutores_dirigindo_sob_a_influencia_de_alcool_ou_de_qualquer_outra_substancia_psicoativa_que_determine_dependencia_art_165_do_ctb","type":"number"},{"label":"Quantidade de condutores embriagados autuados em flagrante - (art. 306 do CTB)","id":"quantidade_de_condutores_embriagados_autuados_em_flagrante_art_306_do_ctb","type":"number"},{"label":"Motocicleta fiscalizada","id":"motocicleta_fiscalizada","type":"number"},{"label":"Automóvel fiscalizado (Caminhonete, caminhoneta e utilitários)","id":"automovel_fiscalizado_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão fiscalizado","id":"caminhao_fiscalizado","type":"number"},{"label":"Ônibus fiscalizado","id":"onibus_fiscalizado","type":"number"},{"label":"Ciclomotor fiscalizado","id":"ciclomotor_fiscalizado","type":"number"},{"label":"Autopropelido fiscalizado","id":"autopropelido_fiscalizado","type":"number"},{"label":"Bicicleta Elétrica  fiscalizada","id":"bicicleta_eletrica_fiscalizada","type":"number"},{"label":"Outros veículos fiscalizados","id":"outros_veiculos_fiscalizados","type":"number"},{"label":"Total de veículos fiscalizados","id":"total_de_veiculos_fiscalizados","type":"number"},{"label":"Motocicleta Removida","id":"motocicleta_removida","type":"number"},{"label":"Automóvel Removido (Caminhonete, caminhoneta e utilitários)","id":"automovel_removido_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão Removido","id":"caminhao_removido","type":"number"},{"label":"Ônibus Removido","id":"onibus_removido","type":"number"},{"label":"Ciclomotor Removido","id":"ciclomotor_removido","type":"number"},{"label":"Outros Veículos Removidos","id":"outros_veiculos_removidos","type":"number"},{"label":"Total de Veículos removidos","id":"total_de_veiculos_removidos","type":"number"}],"Dados do Guincho":[{"label":"Prefixo do Guincho","id":"prefixo_do_guincho","type":"text"},{"label":"Pátio","id":"patio","type":"text"},{"label":"Nome do Motorista","id":"nome_do_motorista","type":"text"}]}},"ODS":{"company":"2ª CiaPTran","hasLoc":true,"sections":{"Dados":[{"label":"LOCAL DA OPERACAO","id":"local_da_operacao","type":"text"},{"label":"BATALHÃO DE ÁREA / CPA","id":"batalhao_de_area_cpa","type":"text"},{"label":"OPERAÇÃO ODS","id":"operacao_ods","type":"text"},{"label":"Quantidade de Operação","id":"quantidade_de_operacao","type":"text"},{"label":"Quantidade de Pessoas abordadas","id":"quantidade_de_pessoas_abordadas","type":"number"},{"label":"Condutores Fiscalizados","id":"condutores_fiscalizados","type":"number"},{"label":"Condutores Autuados","id":"condutores_autuados","type":"number"},{"label":"Auto de Infração Confeccionado DETRAN (ESTADO)","id":"auto_de_infracao_confeccionado_detran_estado","type":"number"},{"label":"Auto de Infração Confeccionados DSV (MUNICÍPIO)","id":"auto_de_infracao_confeccionados_dsv_municipio","type":"number"},{"label":"Outras Autuações","id":"outras_autuacoes","type":"number"},{"label":"Total de Autos de Infração confeccionados","id":"total_de_autos_de_infracao_confeccionados","type":"number"},{"label":"Quantidade de condutores submetidos ao teste do etilômetro","id":"quantidade_de_condutores_submetidos_ao_teste_do_etilometro","type":"number"},{"label":"Quantidade de condutores que se recusaram ao teste do etilômetro (art.165-A do CTB)","id":"quantidade_de_condutores_que_se_recusaram_ao_teste_do_etilometro_art_165_a_do_ctb","type":"number"},{"label":"Quantidade de condutores dirigindo sob a influência de álcool ou de qualquer outra substância psicoativa que determine dependência (art. 165 do CTB)","id":"quantidade_de_condutores_dirigindo_sob_a_influencia_de_alcool_ou_de_qualquer_outra_substancia_psicoativa_que_determine_dependencia_art_165_do_ctb","type":"number"},{"label":"Quantidade de condutores embriagados autuados em flagrante - (art. 306 do CTB)","id":"quantidade_de_condutores_embriagados_autuados_em_flagrante_art_306_do_ctb","type":"number"},{"label":"Motocicleta fiscalizada","id":"motocicleta_fiscalizada","type":"number"},{"label":"Automóvel fiscalizado (Caminhonete, caminhoneta e utilitários)","id":"automovel_fiscalizado_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão fiscalizado","id":"caminhao_fiscalizado","type":"number"},{"label":"Ônibus fiscalizado","id":"onibus_fiscalizado","type":"number"},{"label":"Ciclomotor fiscalizado","id":"ciclomotor_fiscalizado","type":"number"},{"label":"Autopropelido fiscalizado","id":"autopropelido_fiscalizado","type":"number"},{"label":"Bicicleta Elétrica  fiscalizada","id":"bicicleta_eletrica_fiscalizada","type":"number"},{"label":"Outros veículos fiscalizados","id":"outros_veiculos_fiscalizados","type":"number"},{"label":"Total de veículos fiscalizados","id":"total_de_veiculos_fiscalizados","type":"number"},{"label":"Motocicleta Removida","id":"motocicleta_removida","type":"number"},{"label":"Automóvel Removido (Caminhonete, caminhoneta e utilitários)","id":"automovel_removido_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão Removido","id":"caminhao_removido","type":"number"},{"label":"Ônibus Removido","id":"onibus_removido","type":"number"},{"label":"Ciclomotor Removido","id":"ciclomotor_removido","type":"number"},{"label":"Outros Veículos Removidos","id":"outros_veiculos_removidos","type":"number"},{"label":"Total de Veículos removidos","id":"total_de_veiculos_removidos","type":"number"},{"label":"Quantidade de pessoas presas em flagrante (Alcoolemia)","id":"quantidade_de_pessoas_presas_em_flagrante_alcoolemia","type":"number"}],"Dados do Guincho":[{"label":"Prefixo do Guincho","id":"prefixo_do_guincho","type":"text"},{"label":"Pátio","id":"patio","type":"text"},{"label":"Nome do Motorista","id":"nome_do_motorista","type":"text"}]}},"CAVALO DE AÇO":{"company":"2ª CiaPTran","hasLoc":true,"sections":{"Dados":[{"label":"LOCAL DA OPERACAO","id":"local_da_operacao","type":"text"},{"label":"BATALHÃO DE ÁREA / CPA","id":"batalhao_de_area_cpa","type":"text"},{"label":"OPERAÇÃO CAVALO DE AÇO","id":"operacao_cavalo_de_aco","type":"text"},{"label":"Quantidade de Operação","id":"quantidade_de_operacao","type":"text"},{"label":"Quantidade de Pessoas abordadas","id":"quantidade_de_pessoas_abordadas","type":"number"},{"label":"Condutores Fiscalizados","id":"condutores_fiscalizados","type":"number"},{"label":"Condutores Autuados","id":"condutores_autuados","type":"number"},{"label":"Auto de Infração Confeccionado DETRAN (ESTADO)","id":"auto_de_infracao_confeccionado_detran_estado","type":"number"},{"label":"Auto de Infração Confeccionados DSV (MUNICÍPIO)","id":"auto_de_infracao_confeccionados_dsv_municipio","type":"number"},{"label":"Outras Autuações","id":"outras_autuacoes","type":"number"},{"label":"Total de Autos de Infração confeccionados","id":"total_de_autos_de_infracao_confeccionados","type":"number"},{"label":"Quantidade de condutores submetidos ao teste do etilômetro","id":"quantidade_de_condutores_submetidos_ao_teste_do_etilometro","type":"number"},{"label":"Quantidade de condutores que se recusaram ao teste do etilômetro (art.165-A do CTB)","id":"quantidade_de_condutores_que_se_recusaram_ao_teste_do_etilometro_art_165_a_do_ctb","type":"number"},{"label":"Quantidade de condutores dirigindo sob a influência de álcool ou de qualquer outra substância psicoativa que determine dependência (art. 165 do CTB)","id":"quantidade_de_condutores_dirigindo_sob_a_influencia_de_alcool_ou_de_qualquer_outra_substancia_psicoativa_que_determine_dependencia_art_165_do_ctb","type":"number"},{"label":"Quantidade de condutores embriagados autuados em flagrante - (art. 306 do CTB)","id":"quantidade_de_condutores_embriagados_autuados_em_flagrante_art_306_do_ctb","type":"number"},{"label":"Motocicleta fiscalizada","id":"motocicleta_fiscalizada","type":"number"},{"label":"Automóvel fiscalizado (Caminhonete, caminhoneta e utilitários)","id":"automovel_fiscalizado_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão fiscalizado","id":"caminhao_fiscalizado","type":"number"},{"label":"Ônibus fiscalizado","id":"onibus_fiscalizado","type":"number"},{"label":"Ciclomotor fiscalizado","id":"ciclomotor_fiscalizado","type":"number"},{"label":"Autopropelido fiscalizado","id":"autopropelido_fiscalizado","type":"number"},{"label":"Bicicleta Elétrica  fiscalizada","id":"bicicleta_eletrica_fiscalizada","type":"number"},{"label":"Outros veículos fiscalizados","id":"outros_veiculos_fiscalizados","type":"number"},{"label":"Total de veículos fiscalizados","id":"total_de_veiculos_fiscalizados","type":"number"},{"label":"Motocicleta Removida","id":"motocicleta_removida","type":"number"},{"label":"Automóvel Removido (Caminhonete, caminhoneta e utilitários)","id":"automovel_removido_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão Removido","id":"caminhao_removido","type":"number"},{"label":"Ônibus Removido","id":"onibus_removido","type":"number"},{"label":"Ciclomotor Removido","id":"ciclomotor_removido","type":"number"},{"label":"Outros Veículos Removidos","id":"outros_veiculos_removidos","type":"number"},{"label":"Total de Veículos removidos","id":"total_de_veiculos_removidos","type":"number"}],"Dados do Guincho":[{"label":"Prefixo do Guincho","id":"prefixo_do_guincho","type":"text"},{"label":"Pátio","id":"patio","type":"text"},{"label":"Nome do Motorista","id":"nome_do_motorista","type":"text"}]}},"CAMINHÃO":{"company":"2ª CiaPTran","hasLoc":true,"sections":{"Dados":[{"label":"LOCAL DA OPERACAO","id":"local_da_operacao","type":"text"},{"label":"BATALHÃO DE ÁREA / CPA","id":"batalhao_de_area_cpa","type":"text"},{"label":"OPERAÇÃO CAMINHÃO","id":"operacao_caminhao","type":"text"},{"label":"Quantidade de Operação","id":"quantidade_de_operacao","type":"text"},{"label":"Quantidade de Pessoas abordadas","id":"quantidade_de_pessoas_abordadas","type":"number"},{"label":"Condutores Fiscalizados","id":"condutores_fiscalizados","type":"number"},{"label":"Condutores Autuados","id":"condutores_autuados","type":"number"},{"label":"Auto de Infração Confeccionado DETRAN (ESTADO)","id":"auto_de_infracao_confeccionado_detran_estado","type":"number"},{"label":"Auto de Infração Confeccionados DSV (MUNICÍPIO)","id":"auto_de_infracao_confeccionados_dsv_municipio","type":"number"},{"label":"Auto de Infração e Imposição de Penalidade - Produtos Perigosos (AIIPPP)","id":"auto_de_infracao_e_imposicao_de_penalidade_produtos_perigosos_aiippp","type":"number"},{"label":"Outras Autuações","id":"outras_autuacoes","type":"number"},{"label":"Total de Autos de Infração confeccionados","id":"total_de_autos_de_infracao_confeccionados","type":"number"},{"label":"Quantidade de condutores submetidos ao teste do etilômetro","id":"quantidade_de_condutores_submetidos_ao_teste_do_etilometro","type":"number"},{"label":"Quantidade de condutores que se recusaram ao teste do etilômetro (art.165-A do CTB)","id":"quantidade_de_condutores_que_se_recusaram_ao_teste_do_etilometro_art_165_a_do_ctb","type":"number"},{"label":"Quantidade de condutores dirigindo sob a influência de álcool ou de qualquer outra substância psicoativa que determine dependência (art. 165 do CTB)","id":"quantidade_de_condutores_dirigindo_sob_a_influencia_de_alcool_ou_de_qualquer_outra_substancia_psicoativa_que_determine_dependencia_art_165_do_ctb","type":"number"},{"label":"Quantidade de condutores embriagados autuados em flagrante - (art. 306 do CTB)","id":"quantidade_de_condutores_embriagados_autuados_em_flagrante_art_306_do_ctb","type":"number"},{"label":"Motocicleta fiscalizada","id":"motocicleta_fiscalizada","type":"number"},{"label":"Automóvel fiscalizado (Caminhonete, caminhoneta e utilitários)","id":"automovel_fiscalizado_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão fiscalizado","id":"caminhao_fiscalizado","type":"number"},{"label":"Ônibus fiscalizado","id":"onibus_fiscalizado","type":"number"},{"label":"Ciclomotor fiscalizado","id":"ciclomotor_fiscalizado","type":"number"},{"label":"Autopropelido fiscalizado","id":"autopropelido_fiscalizado","type":"number"},{"label":"Bicicleta Elétrica  fiscalizada","id":"bicicleta_eletrica_fiscalizada","type":"number"},{"label":"Outros veículos fiscalizados","id":"outros_veiculos_fiscalizados","type":"number"},{"label":"Total de veículos fiscalizados","id":"total_de_veiculos_fiscalizados","type":"number"},{"label":"Motocicleta Removida","id":"motocicleta_removida","type":"number"},{"label":"Automóvel Removido (Caminhonete, caminhoneta e utilitários)","id":"automovel_removido_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão Removido","id":"caminhao_removido","type":"number"},{"label":"Ônibus Removido","id":"onibus_removido","type":"number"},{"label":"Ciclomotor Removido","id":"ciclomotor_removido","type":"number"},{"label":"Outros Veículos Removidos","id":"outros_veiculos_removidos","type":"number"},{"label":"Total de Veículos removidos","id":"total_de_veiculos_removidos","type":"number"}],"Dados do Guincho":[{"label":"Prefixo do Guincho","id":"prefixo_do_guincho","type":"text"},{"label":"Pátio","id":"patio","type":"text"},{"label":"Nome do Motorista","id":"nome_do_motorista","type":"text"}]}},"PRÓ-CARGA (VUC)":{"company":"2ª CiaPTran","hasLoc":true,"sections":{"Dados":[{"label":"LOCAL DA OPERACAO","id":"local_da_operacao","type":"text"},{"label":"BATALHÃO DE ÁREA / CPA","id":"batalhao_de_area_cpa","type":"text"},{"label":"OPERAÇÃO PRÓ-CARGA (VUC, FIORINO, ETC) - EXCETO CAMINHÕES","id":"operacao_pro_carga_vuc_fiorino_etc_exceto_caminhoes","type":"text"},{"label":"Quantidade de Operação","id":"quantidade_de_operacao","type":"text"},{"label":"Quantidade de Pessoas abordadas","id":"quantidade_de_pessoas_abordadas","type":"number"},{"label":"Condutores Fiscalizados","id":"condutores_fiscalizados","type":"number"},{"label":"Condutores Autuados","id":"condutores_autuados","type":"number"},{"label":"Auto de Infração Confeccionado DETRAN (ESTADO)","id":"auto_de_infracao_confeccionado_detran_estado","type":"number"},{"label":"Auto de Infração Confeccionados DSV (MUNICÍPIO)","id":"auto_de_infracao_confeccionados_dsv_municipio","type":"number"},{"label":"Outras Autuações","id":"outras_autuacoes","type":"number"},{"label":"Total de Autos de Infração confeccionados","id":"total_de_autos_de_infracao_confeccionados","type":"number"},{"label":"Quantidade de condutores submetidos ao teste do etilômetro","id":"quantidade_de_condutores_submetidos_ao_teste_do_etilometro","type":"number"},{"label":"Quantidade de condutores que se recusaram ao teste do etilômetro (art.165-A do CTB)","id":"quantidade_de_condutores_que_se_recusaram_ao_teste_do_etilometro_art_165_a_do_ctb","type":"number"},{"label":"Quantidade de condutores dirigindo sob a influência de álcool ou de qualquer outra substância psicoativa que determine dependência (art. 165 do CTB)","id":"quantidade_de_condutores_dirigindo_sob_a_influencia_de_alcool_ou_de_qualquer_outra_substancia_psicoativa_que_determine_dependencia_art_165_do_ctb","type":"number"},{"label":"Quantidade de condutores embriagados autuados em flagrante - (art. 306 do CTB)","id":"quantidade_de_condutores_embriagados_autuados_em_flagrante_art_306_do_ctb","type":"number"},{"label":"Motocicleta fiscalizada","id":"motocicleta_fiscalizada","type":"number"},{"label":"Automóvel fiscalizado (Caminhonete, caminhoneta e utilitários)","id":"automovel_fiscalizado_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão fiscalizado","id":"caminhao_fiscalizado","type":"number"},{"label":"Ônibus fiscalizado","id":"onibus_fiscalizado","type":"number"},{"label":"Ciclomotor fiscalizado","id":"ciclomotor_fiscalizado","type":"number"},{"label":"Autopropelido fiscalizado","id":"autopropelido_fiscalizado","type":"number"},{"label":"Bicicleta Elétrica  fiscalizada","id":"bicicleta_eletrica_fiscalizada","type":"number"},{"label":"Outros veículos fiscalizados","id":"outros_veiculos_fiscalizados","type":"number"},{"label":"Total de veículos fiscalizados","id":"total_de_veiculos_fiscalizados","type":"number"},{"label":"Motocicleta Removida","id":"motocicleta_removida","type":"number"},{"label":"Automóvel Removido (Caminhonete, caminhoneta e utilitários)","id":"automovel_removido_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão Removido","id":"caminhao_removido","type":"number"},{"label":"Ônibus Removido","id":"onibus_removido","type":"number"},{"label":"Ciclomotor Removido","id":"ciclomotor_removido","type":"number"},{"label":"Outros Veículos Removidos","id":"outros_veiculos_removidos","type":"number"},{"label":"Total de Veículos removidos","id":"total_de_veiculos_removidos","type":"number"}],"Dados do Guincho":[{"label":"Prefixo do Guincho","id":"prefixo_do_guincho","type":"text"},{"label":"Pátio","id":"patio","type":"text"},{"label":"Nome do Motorista","id":"nome_do_motorista","type":"text"}]}},"PP - PRODUTOS PERIGOSOS":{"company":"2ª CiaPTran","hasLoc":true,"sections":{"Dados":[{"label":"LOCAL DA OPERACAO","id":"local_da_operacao","type":"text"},{"label":"BATALHÃO DE ÁREA / CPA","id":"batalhao_de_area_cpa","type":"text"},{"label":"OPERAÇÃO PRODUTOS PERIGOSOS","id":"operacao_produtos_perigosos","type":"text"},{"label":"Quantidade de Operação","id":"quantidade_de_operacao","type":"text"},{"label":"Quantidade de Pessoas abordadas","id":"quantidade_de_pessoas_abordadas","type":"number"},{"label":"Condutores Fiscalizados","id":"condutores_fiscalizados","type":"number"},{"label":"Condutores Autuados","id":"condutores_autuados","type":"number"},{"label":"Auto de Infração Confeccionado DETRAN (ESTADO)","id":"auto_de_infracao_confeccionado_detran_estado","type":"number"},{"label":"Auto de Infração Confeccionados DSV (MUNICÍPIO)","id":"auto_de_infracao_confeccionados_dsv_municipio","type":"number"},{"label":"Auto de Infração e Imposição de Penalidade - Produtos Perigosos (AIIPPP)","id":"auto_de_infracao_e_imposicao_de_penalidade_produtos_perigosos_aiippp","type":"number"},{"label":"Outras Autuações","id":"outras_autuacoes","type":"number"},{"label":"Total de Autos de Infração confeccionados","id":"total_de_autos_de_infracao_confeccionados","type":"number"},{"label":"Quantidade de condutores submetidos ao teste do etilômetro","id":"quantidade_de_condutores_submetidos_ao_teste_do_etilometro","type":"number"},{"label":"Quantidade de condutores que se recusaram ao teste do etilômetro (art.165-A do CTB)","id":"quantidade_de_condutores_que_se_recusaram_ao_teste_do_etilometro_art_165_a_do_ctb","type":"number"},{"label":"Quantidade de condutores dirigindo sob a influência de álcool ou de qualquer outra substância psicoativa que determine dependência (art. 165 do CTB)","id":"quantidade_de_condutores_dirigindo_sob_a_influencia_de_alcool_ou_de_qualquer_outra_substancia_psicoativa_que_determine_dependencia_art_165_do_ctb","type":"number"},{"label":"Quantidade de condutores embriagados autuados em flagrante - (art. 306 do CTB)","id":"quantidade_de_condutores_embriagados_autuados_em_flagrante_art_306_do_ctb","type":"number"},{"label":"Motocicleta fiscalizada","id":"motocicleta_fiscalizada","type":"number"},{"label":"Automóvel fiscalizado (Caminhonete, caminhoneta e utilitários)","id":"automovel_fiscalizado_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão fiscalizado","id":"caminhao_fiscalizado","type":"number"},{"label":"Ônibus fiscalizado","id":"onibus_fiscalizado","type":"number"},{"label":"Ciclomotor fiscalizado","id":"ciclomotor_fiscalizado","type":"number"},{"label":"Autopropelido fiscalizado","id":"autopropelido_fiscalizado","type":"number"},{"label":"Bicicleta Elétrica  fiscalizada","id":"bicicleta_eletrica_fiscalizada","type":"number"},{"label":"Outros veículos fiscalizados","id":"outros_veiculos_fiscalizados","type":"number"},{"label":"Total de veículos fiscalizados","id":"total_de_veiculos_fiscalizados","type":"number"},{"label":"Motocicleta Removida","id":"motocicleta_removida","type":"number"},{"label":"Automóvel Removido (Caminhonete, caminhoneta e utilitários)","id":"automovel_removido_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão Removido","id":"caminhao_removido","type":"number"},{"label":"Ônibus Removido","id":"onibus_removido","type":"number"},{"label":"Ciclomotor Removido","id":"ciclomotor_removido","type":"number"},{"label":"Outros Veículos Removidos","id":"outros_veiculos_removidos","type":"number"},{"label":"Total de Veículos removidos","id":"total_de_veiculos_removidos","type":"number"}],"Dados do Guincho":[{"label":"Prefixo do Guincho","id":"prefixo_do_guincho","type":"text"},{"label":"Pátio","id":"patio","type":"text"},{"label":"Nome do Motorista","id":"nome_do_motorista","type":"text"}]}},"Event. Esportivos-Futebol, etc":{"company":"2ª CiaPTran","hasLoc":true,"sections":{"Dados":[{"label":"LOCAL DA OPERACAO","id":"local_da_operacao","type":"text"},{"label":"BATALHÃO DE ÁREA / CPA","id":"batalhao_de_area_cpa","type":"text"},{"label":"EVENTOS ESPORTIVOS (FUTEBOL E SIMILARES)","id":"eventos_esportivos_futebol_e_similares","type":"number"},{"label":"Quantidade de Pessoas abordadas","id":"quantidade_de_pessoas_abordadas","type":"number"},{"label":"Condutores Fiscalizados","id":"condutores_fiscalizados","type":"number"},{"label":"Condutores Autuados","id":"condutores_autuados","type":"number"},{"label":"Auto de Infração Confeccionado DETRAN (ESTADO)","id":"auto_de_infracao_confeccionado_detran_estado","type":"number"},{"label":"Auto de Infração Confeccionados DSV (MUNICÍPIO)","id":"auto_de_infracao_confeccionados_dsv_municipio","type":"number"},{"label":"Outras Autuações","id":"outras_autuacoes","type":"number"},{"label":"Total de Autos de Infração confeccionados","id":"total_de_autos_de_infracao_confeccionados","type":"number"},{"label":"Quantidade de condutores submetidos ao teste do etilômetro","id":"quantidade_de_condutores_submetidos_ao_teste_do_etilometro","type":"number"},{"label":"Quantidade de condutores que se recusaram ao teste do etilômetro (art.165-A do CTB)","id":"quantidade_de_condutores_que_se_recusaram_ao_teste_do_etilometro_art_165_a_do_ctb","type":"number"},{"label":"Quantidade de condutores dirigindo sob a influência de álcool ou de qualquer outra substância psicoativa que determine dependência (art. 165 do CTB)","id":"quantidade_de_condutores_dirigindo_sob_a_influencia_de_alcool_ou_de_qualquer_outra_substancia_psicoativa_que_determine_dependencia_art_165_do_ctb","type":"number"},{"label":"Quantidade de condutores embriagados autuados em flagrante - (art. 306 do CTB)","id":"quantidade_de_condutores_embriagados_autuados_em_flagrante_art_306_do_ctb","type":"number"},{"label":"Motocicleta fiscalizada","id":"motocicleta_fiscalizada","type":"number"},{"label":"Automóvel fiscalizado (Caminhonete, caminhoneta e utilitários)","id":"automovel_fiscalizado_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão fiscalizado","id":"caminhao_fiscalizado","type":"number"},{"label":"Ônibus fiscalizado","id":"onibus_fiscalizado","type":"number"},{"label":"Ciclomotor fiscalizado","id":"ciclomotor_fiscalizado","type":"number"},{"label":"Autopropelido fiscalizado","id":"autopropelido_fiscalizado","type":"number"},{"label":"Bicicleta Elétrica  fiscalizada","id":"bicicleta_eletrica_fiscalizada","type":"number"},{"label":"Outros veículos fiscalizados","id":"outros_veiculos_fiscalizados","type":"number"},{"label":"Total de veículos fiscalizados","id":"total_de_veiculos_fiscalizados","type":"number"},{"label":"Motocicleta Removida","id":"motocicleta_removida","type":"number"},{"label":"Automóvel Removido (Caminhonete, caminhoneta e utilitários)","id":"automovel_removido_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão Removido","id":"caminhao_removido","type":"number"},{"label":"Ônibus Removido","id":"onibus_removido","type":"number"},{"label":"Ciclomotor Removido","id":"ciclomotor_removido","type":"number"},{"label":"Outros Veículos Removidos","id":"outros_veiculos_removidos","type":"number"},{"label":"Total de Veículos removidos","id":"total_de_veiculos_removidos","type":"number"}]}},"Show":{"company":"2ª CiaPTran","hasLoc":true,"sections":{"Dados":[{"label":"LOCAL DA OPERACAO","id":"local_da_operacao","type":"text"},{"label":"BATALHÃO DE ÁREA / CPA","id":"batalhao_de_area_cpa","type":"text"},{"label":"EVENTOS SHOW E SIMILARES","id":"eventos_show_e_similares","type":"number"},{"label":"Quantidade de Pessoas abordadas","id":"quantidade_de_pessoas_abordadas","type":"number"},{"label":"Condutores Fiscalizados","id":"condutores_fiscalizados","type":"number"},{"label":"Condutores Autuados","id":"condutores_autuados","type":"number"},{"label":"Auto de Infração Confeccionado DETRAN (ESTADO)","id":"auto_de_infracao_confeccionado_detran_estado","type":"number"},{"label":"Auto de Infração Confeccionados DSV (MUNICÍPIO)","id":"auto_de_infracao_confeccionados_dsv_municipio","type":"number"},{"label":"Outras Autuações","id":"outras_autuacoes","type":"number"},{"label":"Total de Autos de Infração confeccionados","id":"total_de_autos_de_infracao_confeccionados","type":"number"},{"label":"Quantidade de condutores submetidos ao teste do etilômetro","id":"quantidade_de_condutores_submetidos_ao_teste_do_etilometro","type":"number"},{"label":"Quantidade de condutores que se recusaram ao teste do etilômetro (art.165-A do CTB)","id":"quantidade_de_condutores_que_se_recusaram_ao_teste_do_etilometro_art_165_a_do_ctb","type":"number"},{"label":"Quantidade de condutores dirigindo sob a influência de álcool ou de qualquer outra substância psicoativa que determine dependência (art. 165 do CTB)","id":"quantidade_de_condutores_dirigindo_sob_a_influencia_de_alcool_ou_de_qualquer_outra_substancia_psicoativa_que_determine_dependencia_art_165_do_ctb","type":"number"},{"label":"Quantidade de condutores embriagados autuados em flagrante - (art. 306 do CTB)","id":"quantidade_de_condutores_embriagados_autuados_em_flagrante_art_306_do_ctb","type":"number"},{"label":"Motocicleta fiscalizada","id":"motocicleta_fiscalizada","type":"number"},{"label":"Automóvel fiscalizado (Caminhonete, caminhoneta e utilitários)","id":"automovel_fiscalizado_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão fiscalizado","id":"caminhao_fiscalizado","type":"number"},{"label":"Ônibus fiscalizado","id":"onibus_fiscalizado","type":"number"},{"label":"Ciclomotor fiscalizado","id":"ciclomotor_fiscalizado","type":"number"},{"label":"Autopropelido fiscalizado","id":"autopropelido_fiscalizado","type":"number"},{"label":"Bicicleta Elétrica  fiscalizada","id":"bicicleta_eletrica_fiscalizada","type":"number"},{"label":"Outros veículos fiscalizados","id":"outros_veiculos_fiscalizados","type":"number"},{"label":"Total de veículos fiscalizados","id":"total_de_veiculos_fiscalizados","type":"number"},{"label":"Motocicleta Removida","id":"motocicleta_removida","type":"number"},{"label":"Automóvel Removido (Caminhonete, caminhoneta e utilitários)","id":"automovel_removido_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão Removido","id":"caminhao_removido","type":"number"},{"label":"Ônibus Removido","id":"onibus_removido","type":"number"},{"label":"Ciclomotor Removido","id":"ciclomotor_removido","type":"number"},{"label":"Outros Veículos Removidos","id":"outros_veiculos_removidos","type":"number"},{"label":"Total de Veículos removidos","id":"total_de_veiculos_removidos","type":"number"}]}},"Manifestações":{"company":"2ª CiaPTran","hasLoc":true,"sections":{"Dados":[{"label":"LOCAL DA OPERACAO","id":"local_da_operacao","type":"text"},{"label":"BATALHÃO DE ÁREA / CPA","id":"batalhao_de_area_cpa","type":"text"},{"label":"MANIFESTAÇÕES E SIMILARES","id":"manifestacoes_e_similares","type":"number"},{"label":"Quantidade de Pessoas abordadas","id":"quantidade_de_pessoas_abordadas","type":"number"},{"label":"Condutores Fiscalizados","id":"condutores_fiscalizados","type":"number"},{"label":"Condutores Autuados","id":"condutores_autuados","type":"number"},{"label":"Auto de Infração Confeccionado DETRAN (ESTADO)","id":"auto_de_infracao_confeccionado_detran_estado","type":"number"},{"label":"Auto de Infração Confeccionados DSV (MUNICÍPIO)","id":"auto_de_infracao_confeccionados_dsv_municipio","type":"number"},{"label":"Outras Autuações","id":"outras_autuacoes","type":"number"},{"label":"Total de Autos de Infração confeccionados","id":"total_de_autos_de_infracao_confeccionados","type":"number"},{"label":"Quantidade de condutores submetidos ao teste do etilômetro","id":"quantidade_de_condutores_submetidos_ao_teste_do_etilometro","type":"number"},{"label":"Quantidade de condutores que se recusaram ao teste do etilômetro (art.165-A do CTB)","id":"quantidade_de_condutores_que_se_recusaram_ao_teste_do_etilometro_art_165_a_do_ctb","type":"number"},{"label":"Quantidade de condutores dirigindo sob a influência de álcool ou de qualquer outra substância psicoativa que determine dependência (art. 165 do CTB)","id":"quantidade_de_condutores_dirigindo_sob_a_influencia_de_alcool_ou_de_qualquer_outra_substancia_psicoativa_que_determine_dependencia_art_165_do_ctb","type":"number"},{"label":"Quantidade de condutores embriagados autuados em flagrante - (art. 306 do CTB)","id":"quantidade_de_condutores_embriagados_autuados_em_flagrante_art_306_do_ctb","type":"number"},{"label":"Motocicleta fiscalizada","id":"motocicleta_fiscalizada","type":"number"},{"label":"Automóvel fiscalizado (Caminhonete, caminhoneta e utilitários)","id":"automovel_fiscalizado_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão fiscalizado","id":"caminhao_fiscalizado","type":"number"},{"label":"Ônibus fiscalizado","id":"onibus_fiscalizado","type":"number"},{"label":"Ciclomotor fiscalizado","id":"ciclomotor_fiscalizado","type":"number"},{"label":"Autopropelido fiscalizado","id":"autopropelido_fiscalizado","type":"number"},{"label":"Bicicleta Elétrica  fiscalizada","id":"bicicleta_eletrica_fiscalizada","type":"number"},{"label":"Outros veículos fiscalizados","id":"outros_veiculos_fiscalizados","type":"number"},{"label":"Total de veículos fiscalizados","id":"total_de_veiculos_fiscalizados","type":"number"},{"label":"Motocicleta Removida","id":"motocicleta_removida","type":"number"},{"label":"Automóvel Removido (Caminhonete, caminhoneta e utilitários)","id":"automovel_removido_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão Removido","id":"caminhao_removido","type":"number"},{"label":"Ônibus Removido","id":"onibus_removido","type":"number"},{"label":"Ciclomotor Removido","id":"ciclomotor_removido","type":"number"},{"label":"Outros Veículos Removidos","id":"outros_veiculos_removidos","type":"number"},{"label":"Total de Veículos removidos","id":"total_de_veiculos_removidos","type":"number"}]}},"OS - Ordens de Serviço":{"company":"2ª CiaPTran","hasLoc":true,"sections":{"Dados":[{"label":"Número da Ordem de Serviço","id":"numero_da_ordem_de_servico","type":"text"},{"label":"LOCAL DA OPERACAO","id":"local_da_operacao","type":"text"},{"label":"BATALHÃO DE ÁREA / CPA","id":"batalhao_de_area_cpa","type":"text"},{"label":"ORDENS DE SERVIÇO - OS","id":"ordens_de_servico_os","type":"number"},{"label":"Quantidade de Pessoas abordadas","id":"quantidade_de_pessoas_abordadas","type":"number"},{"label":"Condutores Fiscalizados","id":"condutores_fiscalizados","type":"number"},{"label":"Condutores Autuados","id":"condutores_autuados","type":"number"},{"label":"Auto de Infração Confeccionado DETRAN (ESTADO)","id":"auto_de_infracao_confeccionado_detran_estado","type":"number"},{"label":"Auto de Infração Confeccionados DSV (MUNICÍPIO)","id":"auto_de_infracao_confeccionados_dsv_municipio","type":"number"},{"label":"Outras Autuações","id":"outras_autuacoes","type":"number"},{"label":"Total de Autos de Infração confeccionados","id":"total_de_autos_de_infracao_confeccionados","type":"number"},{"label":"Quantidade de condutores submetidos ao teste do etilômetro","id":"quantidade_de_condutores_submetidos_ao_teste_do_etilometro","type":"number"},{"label":"Quantidade de condutores que se recusaram ao teste do etilômetro (art.165-A do CTB)","id":"quantidade_de_condutores_que_se_recusaram_ao_teste_do_etilometro_art_165_a_do_ctb","type":"number"},{"label":"Quantidade de condutores dirigindo sob a influência de álcool ou de qualquer outra substância psicoativa que determine dependência (art. 165 do CTB)","id":"quantidade_de_condutores_dirigindo_sob_a_influencia_de_alcool_ou_de_qualquer_outra_substancia_psicoativa_que_determine_dependencia_art_165_do_ctb","type":"number"},{"label":"Quantidade de condutores embriagados autuados em flagrante - (art. 306 do CTB)","id":"quantidade_de_condutores_embriagados_autuados_em_flagrante_art_306_do_ctb","type":"number"},{"label":"Motocicleta fiscalizada","id":"motocicleta_fiscalizada","type":"number"},{"label":"Automóvel fiscalizado (Caminhonete, caminhoneta e utilitários)","id":"automovel_fiscalizado_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão fiscalizado","id":"caminhao_fiscalizado","type":"number"},{"label":"Ônibus fiscalizado","id":"onibus_fiscalizado","type":"number"},{"label":"Ciclomotor fiscalizado","id":"ciclomotor_fiscalizado","type":"number"},{"label":"Autopropelido fiscalizado","id":"autopropelido_fiscalizado","type":"number"},{"label":"Bicicleta Elétrica  fiscalizada","id":"bicicleta_eletrica_fiscalizada","type":"number"},{"label":"Outros veículos fiscalizados","id":"outros_veiculos_fiscalizados","type":"number"},{"label":"Total de veículos fiscalizados","id":"total_de_veiculos_fiscalizados","type":"number"},{"label":"Motocicleta Removida","id":"motocicleta_removida","type":"number"},{"label":"Automóvel Removido (Caminhonete, caminhoneta e utilitários)","id":"automovel_removido_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão Removido","id":"caminhao_removido","type":"number"},{"label":"Ônibus Removido","id":"onibus_removido","type":"number"},{"label":"Ciclomotor Removido","id":"ciclomotor_removido","type":"number"},{"label":"Outros Veículos Removidos","id":"outros_veiculos_removidos","type":"number"},{"label":"Total de Veículos removidos","id":"total_de_veiculos_removidos","type":"number"}]}},"DEJEM":{"company":"2ª CiaPTran","hasLoc":true,"sections":{"Dados":[{"label":"LOCAL DA OPERACAO","id":"local_da_operacao","type":"text"},{"label":"BATALHÃO DE ÁREA / CPA","id":"batalhao_de_area_cpa","type":"text"},{"label":"ID DEJEM","id":"dejem","type":"number"},{"label":"Quantidade de Pessoas abordadas","id":"quantidade_de_pessoas_abordadas","type":"number"},{"label":"Condutores Fiscalizados","id":"condutores_fiscalizados","type":"number"},{"label":"Condutores Autuados","id":"condutores_autuados","type":"number"},{"label":"Auto de Infração Confeccionado DETRAN (ESTADO)","id":"auto_de_infracao_confeccionado_detran_estado","type":"number"},{"label":"Auto de Infração Confeccionados DSV (MUNICÍPIO)","id":"auto_de_infracao_confeccionados_dsv_municipio","type":"number"},{"label":"Outras Autuações","id":"outras_autuacoes","type":"number"},{"label":"Total de Autos de Infração confeccionados","id":"total_de_autos_de_infracao_confeccionados","type":"number"},{"label":"Quantidade de condutores submetidos ao teste do etilômetro","id":"quantidade_de_condutores_submetidos_ao_teste_do_etilometro","type":"number"},{"label":"Quantidade de condutores que se recusaram ao teste do etilômetro (art.165-A do CTB)","id":"quantidade_de_condutores_que_se_recusaram_ao_teste_do_etilometro_art_165_a_do_ctb","type":"number"},{"label":"Quantidade de condutores dirigindo sob a influência de álcool ou de qualquer outra substância psicoativa que determine dependência (art. 165 do CTB)","id":"quantidade_de_condutores_dirigindo_sob_a_influencia_de_alcool_ou_de_qualquer_outra_substancia_psicoativa_que_determine_dependencia_art_165_do_ctb","type":"number"},{"label":"Quantidade de condutores embriagados autuados em flagrante - (art. 306 do CTB)","id":"quantidade_de_condutores_embriagados_autuados_em_flagrante_art_306_do_ctb","type":"number"},{"label":"Motocicleta fiscalizada","id":"motocicleta_fiscalizada","type":"number"},{"label":"Automóvel fiscalizado (Caminhonete, caminhoneta e utilitários)","id":"automovel_fiscalizado_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão fiscalizado","id":"caminhao_fiscalizado","type":"number"},{"label":"Ônibus fiscalizado","id":"onibus_fiscalizado","type":"number"},{"label":"Ciclomotor fiscalizado","id":"ciclomotor_fiscalizado","type":"number"},{"label":"Autopropelido fiscalizado","id":"autopropelido_fiscalizado","type":"number"},{"label":"Bicicleta Elétrica  fiscalizada","id":"bicicleta_eletrica_fiscalizada","type":"number"},{"label":"Outros veículos fiscalizados","id":"outros_veiculos_fiscalizados","type":"number"},{"label":"Total de veículos fiscalizados","id":"total_de_veiculos_fiscalizados","type":"number"},{"label":"Motocicleta Removida","id":"motocicleta_removida","type":"number"},{"label":"Automóvel Removido (Caminhonete, caminhoneta e utilitários)","id":"automovel_removido_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão Removido","id":"caminhao_removido","type":"number"},{"label":"Ônibus Removido","id":"onibus_removido","type":"number"},{"label":"Ciclomotor Removido","id":"ciclomotor_removido","type":"number"},{"label":"Outros Veículos Removidos","id":"outros_veiculos_removidos","type":"number"},{"label":"Total de Veículos removidos","id":"total_de_veiculos_removidos","type":"number"}]}},"DELEGADA":{"company":"2ª CiaPTran","hasLoc":true,"sections":{"Dados":[{"label":"LOCAL DA OPERACAO","id":"local_da_operacao","type":"text"},{"label":"BATALHÃO DE ÁREA / CPA","id":"batalhao_de_area_cpa","type":"text"},{"label":"ID DELEGADA","id":"delegada","type":"number"},{"label":"Quantidade de Pessoas abordadas","id":"quantidade_de_pessoas_abordadas","type":"number"},{"label":"Condutores Fiscalizados","id":"condutores_fiscalizados","type":"number"},{"label":"Condutores Autuados","id":"condutores_autuados","type":"number"},{"label":"Auto de Infração Confeccionado DETRAN (ESTADO)","id":"auto_de_infracao_confeccionado_detran_estado","type":"number"},{"label":"Auto de Infração Confeccionados DSV (MUNICÍPIO)","id":"auto_de_infracao_confeccionados_dsv_municipio","type":"number"},{"label":"Outras Autuações","id":"outras_autuacoes","type":"number"},{"label":"Total de Autos de Infração confeccionados","id":"total_de_autos_de_infracao_confeccionados","type":"number"},{"label":"Quantidade de condutores submetidos ao teste do etilômetro","id":"quantidade_de_condutores_submetidos_ao_teste_do_etilometro","type":"number"},{"label":"Quantidade de condutores que se recusaram ao teste do etilômetro (art.165-A do CTB)","id":"quantidade_de_condutores_que_se_recusaram_ao_teste_do_etilometro_art_165_a_do_ctb","type":"number"},{"label":"Quantidade de condutores dirigindo sob a influência de álcool ou de qualquer outra substância psicoativa que determine dependência (art. 165 do CTB)","id":"quantidade_de_condutores_dirigindo_sob_a_influencia_de_alcool_ou_de_qualquer_outra_substancia_psicoativa_que_determine_dependencia_art_165_do_ctb","type":"number"},{"label":"Quantidade de condutores embriagados autuados em flagrante - (art. 306 do CTB)","id":"quantidade_de_condutores_embriagados_autuados_em_flagrante_art_306_do_ctb","type":"number"},{"label":"Motocicleta fiscalizada","id":"motocicleta_fiscalizada","type":"number"},{"label":"Automóvel fiscalizado (Caminhonete, caminhoneta e utilitários)","id":"automovel_fiscalizado_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão fiscalizado","id":"caminhao_fiscalizado","type":"number"},{"label":"Ônibus fiscalizado","id":"onibus_fiscalizado","type":"number"},{"label":"Ciclomotor fiscalizado","id":"ciclomotor_fiscalizado","type":"number"},{"label":"Autopropelido fiscalizado","id":"autopropelido_fiscalizado","type":"number"},{"label":"Bicicleta Elétrica  fiscalizada","id":"bicicleta_eletrica_fiscalizada","type":"number"},{"label":"Outros veículos fiscalizados","id":"outros_veiculos_fiscalizados","type":"number"},{"label":"Total de veículos fiscalizados","id":"total_de_veiculos_fiscalizados","type":"number"},{"label":"Motocicleta Removida","id":"motocicleta_removida","type":"number"},{"label":"Automóvel Removido (Caminhonete, caminhoneta e utilitários)","id":"automovel_removido_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão Removido","id":"caminhao_removido","type":"number"},{"label":"Ônibus Removido","id":"onibus_removido","type":"number"},{"label":"Ciclomotor Removido","id":"ciclomotor_removido","type":"number"},{"label":"Outros Veículos Removidos","id":"outros_veiculos_removidos","type":"number"},{"label":"Total de Veículos removidos","id":"total_de_veiculos_removidos","type":"number"}]}},"OPERAÇÃO DIVERSAS":{"company":"2ª CiaPTran","hasLoc":true,"sections":{"Dados":[{"label":"LOCAL DA OPERACAO","id":"local_da_operacao","type":"text"},{"label":"BATALHÃO DE ÁREA / CPA","id":"batalhao_de_area_cpa","type":"text"},{"label":"OPERAÇÃO - DIVERSAS (SATURAÇÃO/VERÃO/ INVERNO/ARTESP,ETC )","id":"operacao_diversas_saturacao_verao_inverno_artesp_etc","type":"text"},{"label":"Quantidade de Pessoas abordadas","id":"quantidade_de_pessoas_abordadas","type":"number"},{"label":"Condutores Fiscalizados","id":"condutores_fiscalizados","type":"number"},{"label":"Condutores Autuados","id":"condutores_autuados","type":"number"},{"label":"Auto de Infração Confeccionado DETRAN (ESTADO)","id":"auto_de_infracao_confeccionado_detran_estado","type":"number"},{"label":"Auto de Infração Confeccionados DSV (MUNICÍPIO)","id":"auto_de_infracao_confeccionados_dsv_municipio","type":"number"},{"label":"Outras Autuações","id":"outras_autuacoes","type":"number"},{"label":"Total de Autos de Infração confeccionados","id":"total_de_autos_de_infracao_confeccionados","type":"number"},{"label":"Quantidade de condutores submetidos ao teste do etilômetro","id":"quantidade_de_condutores_submetidos_ao_teste_do_etilometro","type":"number"},{"label":"Quantidade de condutores que se recusaram ao teste do etilômetro (art.165-A do CTB)","id":"quantidade_de_condutores_que_se_recusaram_ao_teste_do_etilometro_art_165_a_do_ctb","type":"number"},{"label":"Quantidade de condutores dirigindo sob a influência de álcool ou de qualquer outra substância psicoativa que determine dependência (art. 165 do CTB)","id":"quantidade_de_condutores_dirigindo_sob_a_influencia_de_alcool_ou_de_qualquer_outra_substancia_psicoativa_que_determine_dependencia_art_165_do_ctb","type":"number"},{"label":"Quantidade de condutores embriagados autuados em flagrante - (art. 306 do CTB)","id":"quantidade_de_condutores_embriagados_autuados_em_flagrante_art_306_do_ctb","type":"number"},{"label":"Motocicleta fiscalizada","id":"motocicleta_fiscalizada","type":"number"},{"label":"Automóvel fiscalizado (Caminhonete, caminhoneta e utilitários)","id":"automovel_fiscalizado_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão fiscalizado","id":"caminhao_fiscalizado","type":"number"},{"label":"Ônibus fiscalizado","id":"onibus_fiscalizado","type":"number"},{"label":"Ciclomotor fiscalizado","id":"ciclomotor_fiscalizado","type":"number"},{"label":"Autopropelido fiscalizado","id":"autopropelido_fiscalizado","type":"number"},{"label":"Bicicleta Elétrica  fiscalizada","id":"bicicleta_eletrica_fiscalizada","type":"number"},{"label":"Outros veículos fiscalizados","id":"outros_veiculos_fiscalizados","type":"number"},{"label":"Total de veículos fiscalizados","id":"total_de_veiculos_fiscalizados","type":"number"},{"label":"Motocicleta Removida","id":"motocicleta_removida","type":"number"},{"label":"Automóvel Removido (Caminhonete, caminhoneta e utilitários)","id":"automovel_removido_caminhonete_caminhoneta_e_utilitarios","type":"number"},{"label":"Caminhão Removido","id":"caminhao_removido","type":"number"},{"label":"Ônibus Removido","id":"onibus_removido","type":"number"},{"label":"Ciclomotor Removido","id":"ciclomotor_removido","type":"number"},{"label":"Outros Veículos Removidos","id":"outros_veiculos_removidos","type":"number"},{"label":"Total de Veículos removidos","id":"total_de_veiculos_removidos","type":"number"}]}}};
+
+
+// ====== ENVIO PARA PLANILHA (BANCO DIÁRIO) ======
+// Cole aqui a URL do Web App (termina com /exec) e o token (igual ao do Apps Script)
+const GS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyoUbVVXtmZBvScOka9-196l35ppUmdcl11ptABb5aLW_0s9SQFWr2Mp7rlomkDEz-F/exec";
+const GS_TOKEN = "aindapensonela";
+
+// Coleta tudo que o formulário gerou (campos dinâmicos + locais)
+function collectPayload() {
+  const op = (el("operacao").value || ""); // aba/operação selecionada
+  const payload = {
+    versao: 5,
+    companhia: el("companhia").value || "",
+    operacao: op,
+    data: el("data").value || "",
+    turno: el("turno").value || "",
+    pelotao: el("pelotao").value || "",
+    responsavel: el("responsavel").value || "",
+    contato: el("contato").value || "",
+    ocorrencias: el("ocorrencias").value || "",
+    locais: [],
+    campos: {},
+    fields: []
+  };
+
+  // locais (cards)
+  document.querySelectorAll(".loc-card").forEach(card => {
+    const obj = {};
+    card.querySelectorAll("[data-loc]").forEach(inp => {
+      obj[inp.getAttribute("data-loc")] = (inp.value || "").trim();
+    });
+    // só adiciona se tiver pelo menos um campo preenchido
+    if(Object.values(obj).some(v => v)) payload.locais.push(obj);
+  });
+
+  // campos dinâmicos (por aba/operação)
+  document.querySelectorAll('[data-rda-field="1"]').forEach(inp => {
+    const id = inp.id || "";
+    if(!id) return;
+
+    // pega o label (texto do <label> acima do input)
+    const labelEl = inp.parentElement ? inp.parentElement.querySelector("label") : null;
+    const label = labelEl ? (labelEl.textContent || "").trim() : "";
+
+    const key = id; // já é único (f_<op>_<id>)
+    const val = (inp.type === "number") ? (inp.value === "" ? "" : Number(inp.value)) : (inp.value || "");
+
+    // salva no mapa por id (debug/auditoria)
+    if(val !== "" && val !== null && val !== undefined) payload.campos[key] = val;
+
+    // salva também no formato label/value (para preencher colunas no Sheets)
+    if(label && val !== "" && val !== null && val !== undefined) payload.fields.push({ label, value: val, type: inp.type || "text" });
+  });
+
+  return payload;
+}
+
+function enviarParaPlanilha(p) {
+  // Se não configurou, não faz nada (mas não impede o WhatsApp)
+  if(!GS_WEBAPP_URL || GS_WEBAPP_URL.includes("COLE_AQUI")) return;
+
+  p = p || collectPayload();
+  const form = document.getElementById("gsForm");
+  form.action = GS_WEBAPP_URL;
+
+  form.token.value = GS_TOKEN || "";
+  form.data.value = p.data;
+  form.companhia.value = p.companhia;
+  form.operacao.value = p.operacao;
+  form.turno.value = p.turno;
+  form.pelotao.value = p.pelotao;
+  form.responsavel.value = p.responsavel;
+  form.contato.value = p.contato;
+  form.ocorrencias.value = p.ocorrencias;
+  form.payload.value = JSON.stringify(p);
+
+  form.submit();
+}
+
+// Consulta ao Apps Script (JSONP: não depende de CORS)
+function gsJsonp(params, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const cb = "__gs_cb_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
+    const sc = document.createElement("script");
+    const timer = setTimeout(() => { limpar(); reject(new Error("timeout")); }, timeoutMs || 15000);
+    function limpar() { clearTimeout(timer); try { delete window[cb]; } catch(e) { window[cb] = undefined; } sc.remove(); }
+    window[cb] = (data) => { limpar(); resolve(data); };
+    sc.onerror = () => { limpar(); reject(new Error("rede")); };
+    const q = new URLSearchParams(Object.assign({ token: GS_TOKEN, callback: cb }, params));
+    sc.src = GS_WEBAPP_URL + "?" + q.toString();
+    document.head.appendChild(sc);
+  });
+}
+
+// Código do resultado (sem 0/O/1/I/L para não confundir)
+function gerarCodigo() {
+  const A = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const b = new Uint32Array(6);
+  (window.crypto || window.msCrypto).getRandomValues(b);
+  return Array.from(b, x => A[x % A.length]).join("");
+}
+// ====== FIM ENVIO PARA PLANILHA ======
+
+function el(id) { return document.getElementById(id); }
+
+function toast(msg) {
+  const t = el("toast");
+  t.textContent = msg;
+  t.style.display = "block";
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(()=> t.style.display="none", 2200);
+}
+
+function sanitizeKey(s) {
+  return (s||"").toString().toLowerCase().replace(/\s+/g,"_").replace(/[^a-z0-9_\-]/g,"");
+}
+
+function opKey() {
+  const op = el("operacao").value || "RDA";
+  return "rda_" + sanitizeKey(el("companhia").value || "2cia") + "_" + sanitizeKey(op);
+}
+
+function escapeHtml(s) {
+  return (s||"").toString()
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+function getCamposState() {
+  const obj = {};
+  document.querySelectorAll("[data-rda-field='1']").forEach(inp => {
+    obj[inp.id] = inp.value;
+  });
+  return obj;
+}
+
+function setCamposState(campos) {
+  if(!campos) return;
+  Object.keys(campos).forEach(id => {
+    const node = document.getElementById(id);
+    if(node) node.value = campos[id];
+  });
+}
+
+function getLocaisState() {
+  const locais = [];
+  document.querySelectorAll(".loc-card").forEach(card => {
+    locais.push({
+      local: card.querySelector("[data-loc='local']").value || "",
+      endereco: card.querySelector("[data-loc='endereco']").value || "",
+      batalhao: card.querySelector("[data-loc='batalhao']").value || "",
+      horario: card.querySelector("[data-loc='horario']").value || ""
+    });
+  });
+  return locais;
+}
+
+function setLocaisState(locais) {
+  el("locaisList").innerHTML = "";
+  (locais && locais.length ? locais : [{local:"",endereco:"",batalhao:"",horario:""}]).forEach(l => {
+    addLocal(l);
+  });
+}
+
+let __edit = null;   // preenchido quando estamos editando um resultado já enviado
+
+function saveState() {
+  if(__edit) return;   // na edição não mexe no rascunho do "Novo RDA"
+  const op = el("operacao").value || "RDA";
+  const key = opKey();
+  const state = {
+    operacao: op,
+    data: el("data").value || "",
+    turno: el("turno").value || "",
+        pelotao: el("pelotao").value || "",
+    responsavel: el("responsavel").value || "",
+    contato: el("contato").value || "",
+    locais: getLocaisState(),
+    campos: getCamposState(),
+    ocorrencias: el("ocorrencias") ? (el("ocorrencias").value || "") : ""
+  };
+  try { localStorage.setItem(key, JSON.stringify(state)); } catch(e) {}
+}
+
+function loadState(op) {
+  const key = "rda_" + sanitizeKey(el("companhia").value || "2cia") + "_" + sanitizeKey(op);
+  let raw = null;
+  try { raw = localStorage.getItem(key); } catch(e) {}
+  if(!raw) return null;
+  try { return JSON.parse(raw); } catch(e) { return null; }
+}
+
+function addLocal(prefill={local:"",endereco:"",batalhao:"",horario:""}) {
+  const idx = document.querySelectorAll(".loc-card").length + 1;
+  const card = document.createElement("div");
+  card.className = "loc-card";
+  card.innerHTML = `
+    <div class="loc-head">
+      <div><b>Local ${idx}</b></div>
+      <button class="linkbtn" type="button" onclick="this.closest('.loc-card').remove(); renumberLocais(); saveState();">Remover</button>
+    </div>
+    <div class="grid">
+      <div>
+        <label>Local</label>
+        <input data-loc="local" type="text" placeholder="Ex.: Estádio / Casa de show / Via" value="${escapeHtml(prefill.local)}"/>
+      </div>
+      <div>
+        <label>Endereço</label>
+        <input data-loc="endereco" type="text" placeholder="Rua / nº / bairro" value="${escapeHtml(prefill.endereco)}"/>
+      </div>
+    </div>
+    <div class="grid">
+      <div>
+        <label>Batalhão de área / CPA</label>
+        <input data-loc="batalhao" type="text" placeholder="Ex.: 4º BPM/M - CPA M-2" value="${escapeHtml(prefill.batalhao)}"/>
+      </div>
+      <div>
+        <label>Horário</label>
+        <input data-loc="horario" type="text" placeholder="Ex.: 19h às 01h" value="${escapeHtml(prefill.horario)}"/>
+      </div>
+    </div>
+  `;
+  el("locaisList").appendChild(card);
+  saveState();
+}
+
+function renumberLocais(){
+  document.querySelectorAll(".loc-card").forEach((card,i)=>{
+    const b = card.querySelector(".loc-head b");
+    if(b) b.textContent = "Local " + (i+1);
+  });
+}
+
+function renderOperacoes() {
+  const sel = el("operacao");
+  sel.innerHTML = "";
+  Object.keys(SCHEMA).forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    sel.appendChild(opt);
+  });
+}
+
+function renderForm(op) {
+  const cfg = SCHEMA[op];
+
+  // companhia pill
+  el("ciaPill").textContent = el("companhia").value;
+
+  // locais
+  if(cfg.hasLoc) {
+    el("locaisWrap").style.display = "block";
+  } else {
+    el("locaisWrap").style.display = "none";
+    el("locaisList").innerHTML = "";
+  }
+
+  // campos
+  const wrap = el("formWrap");
+  wrap.innerHTML = "";
+  const sections = cfg.sections || {};
+  Object.keys(sections).forEach(secName => {
+    const title = document.createElement("div");
+    title.className = "section-title";
+    title.textContent = secName;
+    wrap.appendChild(title);
+
+
+    sections[secName].forEach(f => {
+      // Evita duplicidade nas abas com "Adicionar local":
+      // - LOCAL DA OPERACAO e BATALHÃO/CPA já ficam no card de "Dados da Operação"
+      // - campos "operacao_*" são redundantes porque a aba já define a operação
+      if(cfg.hasLoc && (f.id === "local_da_operacao" || f.id === "batalhao_de_area_cpa" || (f.id || "").startsWith("operacao_"))) {
+        return;
+      }
+      const id = "f_" + sanitizeKey(op) + "_" + f.id;
+      const div = document.createElement("div");
+      div.innerHTML = `
+        <label for="${id}">${escapeHtml(f.label)}</label>
+        <input data-rda-field="1" id="${id}" ${f.type==="number" ? 'type="number" inputmode="numeric" placeholder="0"' : 'type="text" placeholder=""'} />
+      `;
+      wrap.appendChild(div);
+    });
+  });
+
+  // carregar state
+  const state = loadState(op);
+  if(state) {
+    if(state.data) el("data").value = state.data;
+    if(state.turno) el("turno").value = state.turno;
+        if(state.pelotao) el("pelotao").value = state.pelotao;
+    if(state.responsavel) el("responsavel").value = state.responsavel;
+    if(state.contato) el("contato").value = state.contato;
+    if(state.ocorrencias && el("ocorrencias")) el("ocorrencias").value = state.ocorrencias;
+    if(cfg.hasLoc) setLocaisState(state.locais);
+    setCamposState(state.campos);
+  } else {
+    if(cfg.hasLoc) setLocaisState(null);
+  }
+
+  saveState();
+}
+
+function buildText(retificado) {
+  const op = el("operacao").value;
+  const cfg = SCHEMA[op];
+  const comp = el("companhia").value;
+
+  let out = [];
+  out.push(retificado ? "RDA DIÁRIO — RETIFICADO" : "RDA DIÁRIO");
+  out.push(`Companhia: ${comp}`);
+  out.push(`Operação/Aba: ${op}`);
+  if(el("data").value) { const [_y,_m,_d]=el("data").value.split("-"); out.push(`Data: ${_d}/${_m}/${_y}`); }
+  if(el("turno").value) out.push(`Turno: ${el("turno").value}`);
+    if(el("pelotao").value) out.push(`Pelotão: ${el("pelotao").value}`);
+  if(el("responsavel").value) out.push(`Responsável: ${el("responsavel").value}`);
+  if(el("contato").value) out.push(`Contato: ${el("contato").value}`);
+
+  if(cfg.hasLoc) {
+    const locais = getLocaisState().filter(l => (l.local||l.endereco||l.batalhao||l.horario));
+    if(locais.length) {
+      out.push("");
+      out.push("DADOS DA OPERAÇÃO");
+      locais.forEach((l,i) => {
+        out.push(`- Local ${i+1}: ${l.local || "-"}`);
+        if(l.endereco) out.push(`  Endereço: ${l.endereco}`);
+        if(l.batalhao) out.push(`  Batalhão/CPA: ${l.batalhao}`);
+        if(l.horario) out.push(`  Horário: ${l.horario}`);
+      });
+    }
+  }
+
+  const sections = cfg.sections || {};
+  Object.keys(sections).forEach(secName => {
+    let lines = [];
+    sections[secName].forEach(f => {
+      const id = "f_" + sanitizeKey(op) + "_" + f.id;
+      const val = (document.getElementById(id)?.value || "").toString().trim();
+      if(val !== "" && val !== "0") {
+        lines.push(`${f.label}: ${val}`);
+      }
+    });
+    if(lines.length) {
+      out.push("");
+      out.push(secName.toUpperCase());
+      lines.forEach(l => out.push(l));
+    }
+  });
+
+  const occ = el("ocorrencias") ? (el("ocorrencias").value || "") : "";
+  if(occ.trim()) {
+    out.push("");
+    out.push("OCORRÊNCIAS:");
+    out.push(occ.trim());
+  }
+  return out.join("\n");
+}
+
+async function copyText() {
+  const text = buildText(!!__edit);
+  try {
+    await navigator.clipboard.writeText(text);
+    toast("Texto copiado.");
+  } catch(e) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+    toast("Texto copiado.");
+  }
+}
+
+async function shareWhats() {
+  if(__edit) return salvarEdicao(true);
+
+  // envio novo: gera o código, manda para a planilha e compartilha o texto
+  if(!el("data").value) { toast("Informe a data antes de enviar."); try { el("data").focus(); } catch(e) {} return; }
+  const p = collectPayload();
+  const assin = JSON.stringify([p.companhia, p.operacao, p.data, p.turno, p.pelotao, p.responsavel, p.fields, p.locais, p.ocorrencias]);
+  if(window.__ultimaAssinatura === assin &&
+     !confirm("Este mesmo resultado já foi enviado neste aparelho. Enviar de novo vai DUPLICAR os números na planilha. Enviar mesmo assim?")) return;
+  window.__ultimaAssinatura = assin;
+  p.modo = "novo";
+  p.codigo = gerarCodigo();
+  try { enviarParaPlanilha(p); } catch(e) {}
+  guardarMeuEnvio(p);
+  mostrarEnviado("<b>Enviado!</b> Código deste resultado:", p.codigo, p);
+  confirmarEnvio(p.codigo, null);   // confirmação em segundo plano
+
+  await compartilharTexto(buildText(false));
+}
+
+async function compartilharTexto(text) {
+  if(navigator.share) {
+    try {
+      await navigator.share({ title: "RDA Diário", text });
+      return;
+    } catch(e) {}
+  }
+  await copyText();
+  const url = "https://wa.me/?text=" + encodeURIComponent(text);
+  window.open(url, "_blank");
+}
+
+// ===== caixa "Enviado" + confirmação =====
+function mostrarEnviado(titulo, codigo, p) {
+  el("sentTitle").innerHTML = titulo;
+  el("sentCode").textContent = codigo;
+  el("sentStatus").textContent = "Enviado como: " + (p.companhia || "-") + " • " + (p.operacao || "-") + " — confirmando na planilha…";
+  el("sentBox").style.display = "block";
+  try { el("sentBox").scrollIntoView({ behavior: "smooth", block: "center" }); } catch(e) {}
+}
+
+async function confirmarEnvio(codigo, anterior) {
+  const st = el("sentStatus");
+  const base = st.textContent.split(" — ")[0];
+  for(let i = 0; i < 8; i++) {
+    await new Promise(r => setTimeout(r, i === 0 ? 2500 : 3000));
+    try {
+      const r = await gsJsonp({ acao: "buscar", codigo }, 12000);
+      if(r && r.ok && (anterior === null || r.atualizado_em !== anterior)) {
+        st.textContent = base + " — confirmado na planilha.";
+        return r;
+      }
+      if(r && r.erro === "prazo") {
+        st.textContent = base + " — o prazo de 24 horas terminou: a edição NÃO foi salva.";
+        return null;
+      }
+    } catch(e) {}
+  }
+  st.textContent = base + " — não consegui confirmar na planilha. Espere um minuto e confira em “Editar resultado”; se não achar, envie de novo.";
+  return null;
+}
+
+async function copiarCodigo() {
+  const c = el("sentCode").textContent;
+  try { await navigator.clipboard.writeText(c); toast("Código copiado: " + c); }
+  catch(e) { toast("Código: " + c); }
+}
+
+// ===== últimos envios deste aparelho (para não esquecer o código) =====
+function guardarMeuEnvio(p) {
+  try {
+    const lista = JSON.parse(localStorage.getItem("rda_meus_envios") || "[]");
+    lista.unshift({ codigo: p.codigo, operacao: p.operacao, data: p.data, contato: p.contato || "" });
+    localStorage.setItem("rda_meus_envios", JSON.stringify(lista.slice(0, 15)));
+  } catch(e) {}
+}
+
+function renderRecentes() {
+  const box = el("edRecentes"); box.innerHTML = "";
+  let lista = [];
+  try { lista = JSON.parse(localStorage.getItem("rda_meus_envios") || "[]"); } catch(e) {}
+  el("edRecentesWrap").style.display = lista.length ? "block" : "none";
+  lista.forEach(it => {
+    const b = document.createElement("button");
+    b.type = "button";
+    const d = (it.data || "").split("-").reverse().join("/");
+    b.textContent = `${it.operacao} • ${d} • ${it.codigo}`;
+    b.onclick = () => { el("edCodigo").value = it.codigo; };
+    box.appendChild(b);
+  });
+}
+
+// ===== navegação =====
+function mostrar(id) {
+  ["homeCard", "editCard", "appCard"].forEach(x => el(x).style.display = (x === id ? "block" : "none"));
+  window.scrollTo(0, 0);
+}
+function irNovo() { sairModoEdicao(); mostrar("appCard"); }
+function irEditar() {
+  sairModoEdicao();
+  el("edCodigo").value = ""; el("edMsg").textContent = "";
+  renderRecentes();
+  mostrar("editCard");
+}
+function voltarInicio() {
+  if(__edit && !confirm("Descartar a edição em andamento?")) return;
+  sairModoEdicao();
+  mostrar("homeCard");
+}
+function cancelarEdicao() { voltarInicio(); }
+
+// ===== edição =====
+async function buscarEdicao() {
+  const cod = (el("edCodigo").value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const msg = el("edMsg");
+  if(cod.length < 4) { msg.textContent = "Digite o código do resultado."; return; }
+  msg.textContent = "Buscando…";
+  el("btnBuscar").disabled = true;
+  try {
+    let r;
+    try { r = await gsJsonp({ acao: "buscar", codigo: cod }, 20000); }
+    catch(e1) { msg.textContent = "Buscando… (tentando de novo)"; r = await gsJsonp({ acao: "buscar", codigo: cod }, 20000); }
+    if(!r || !r.ok) {
+      const e = r && r.erro;
+      msg.textContent = e === "nao_encontrado" ? "Código não encontrado. Confira as letras e os números."
+        : e === "sem_registro" ? "A planilha ainda não está guardando os envios com código (o Apps Script precisa ser atualizado com uma NOVA VERSÃO). Avise o responsável pela planilha."
+        : e === "token" ? "Token do formulário diferente do Apps Script. Avise o responsável pela planilha."
+        : e === "acao" ? "O Apps Script publicado é uma versão antiga e não sabe buscar resultados. Avise o responsável pela planilha."
+        : e === "prazo" ? "O prazo de 24 horas para editar este resultado já terminou. Para corrigir agora, fale com o responsável pela planilha."
+        : "Não foi possível buscar (" + (e || "erro") + ").";
+      return;
+    }
+    entrarModoEdicao(cod, r);
+  } catch(e) {
+    msg.textContent = "Não consegui falar com a planilha. Verifique a internet e tente de novo. (Se continuar, o Apps Script precisa estar implantado como “Qualquer pessoa”.)";
+  } finally {
+    el("btnBuscar").disabled = false;
+  }
+}
+
+function normTxt(s) {
+  return String(s == null ? "" : s).replace(/\s+/g, " ").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function entrarModoEdicao(cod, r) {
+  const p = r.payload || {};
+  if(!SCHEMA[p.operacao]) {   // tolera diferença de maiúscula/acento no nome da operação
+    const k = Object.keys(SCHEMA).find(n => normTxt(n) === normTxt(p.operacao));
+    if(k) p.operacao = k;
+  }
+  if(!SCHEMA[p.operacao]) { el("edMsg").textContent = "A operação deste resultado (" + p.operacao + ") não existe mais no formulário."; return; }
+
+  __edit = { codigo: cod, atualizado: r.atualizado_em, operacao: p.operacao, ate: r.edita_ate || "" };
+
+  const optCia = Array.from(el("companhia").options).some(o => o.value === p.companhia);
+  if(optCia) el("companhia").value = p.companhia;
+  el("operacao").value = p.operacao;
+  renderForm(p.operacao);   // com __edit ligado o autosave não grava nada
+
+  // limpa o que veio do rascunho e preenche com o resultado salvo
+  document.querySelectorAll("[data-rda-field='1']").forEach(i => i.value = "");
+  el("data").value = p.data || "";
+  el("turno").value = p.turno || "";
+  el("pelotao").value = p.pelotao || "";
+  el("responsavel").value = p.responsavel || "";
+  el("contato").value = p.contato || "";
+  el("ocorrencias").value = p.ocorrencias || "";
+  if(SCHEMA[p.operacao].hasLoc) setLocaisState(p.locais);
+
+  const porLabel = {};
+  (p.fields || []).forEach(f => { porLabel[normTxt(f.label)] = f.value; });
+  document.querySelectorAll("[data-rda-field='1']").forEach(inp => {
+    const lab = inp.parentElement ? inp.parentElement.querySelector("label") : null;
+    const t = normTxt(lab ? lab.textContent : "");
+    if(t && porLabel[t] !== undefined) inp.value = porLabel[t];
+  });
+
+  el("operacao").disabled = true;
+  el("ciaPill").textContent = el("companhia").value;
+  let ateTxt = "";
+  if(r.edita_ate) {
+    const dt = new Date(r.edita_ate);
+    if(!isNaN(dt)) ateTxt = " Edição liberada até " + dt.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) + ".";
+  }
+  el("editBanner").innerHTML = "Editando o resultado <b>" + cod + "</b> — " + escapeHtml(p.operacao) +
+    "." + ateTxt + " A operação não pode ser trocada; para isso faça um novo envio.";
+  el("editBanner").style.display = "block";
+  el("rowNovo").style.display = "none";
+  el("rowEdit").style.display = "flex";
+  el("sentBox").style.display = "none";
+  mostrar("appCard");
+}
+
+function sairModoEdicao() {
+  const estava = !!__edit;
+  __edit = null;
+  el("operacao").disabled = false;
+  el("editBanner").style.display = "none";
+  el("rowNovo").style.display = "flex";
+  el("rowEdit").style.display = "none";
+  el("sentBox").style.display = "none";
+  if(estava) {
+    try { const s = localStorage.getItem("rda_companhia_escolhida"); if(s) el("companhia").value = s; } catch(e) {}
+    renderForm(el("operacao").value);   // volta o rascunho do "Novo RDA"
+  }
+}
+
+async function salvarEdicao(compartilhar) {
+  if(!__edit) return;
+  const p = collectPayload();
+  p.modo = "editar";
+  p.codigo = __edit.codigo;
+  p.operacao = __edit.operacao;
+  const anterior = __edit.atualizado;
+
+  try { enviarParaPlanilha(p); } catch(e) {}
+  mostrarEnviado("<b>Edição enviada.</b> Código do resultado:", p.codigo, p);
+  confirmarEnvio(p.codigo, anterior).then(r => {
+    if(r && __edit) { __edit.atualizado = r.atualizado_em; }
+  });
+
+  if(compartilhar) await compartilharTexto(buildText(true));
+}
+
+function clearAll() {
+  const op = el("operacao").value;
+  document.querySelectorAll("[data-rda-field='1']").forEach(i => i.value = "");
+  el("data").value = "";
+  el("turno").value = "";
+  el("pelotao").value = "";
+  el("responsavel").value = "";
+  el("contato").value = "";
+  if(el("ocorrencias")) el("ocorrencias").value = "";
+  if(SCHEMA[op].hasLoc) {
+    el("locaisList").innerHTML = "";
+    setLocaisState(null);
+  }
+  saveState();
+  toast("Limpo.");
+}
+
+// autosave: UM listener só para a página toda (antes acumulava a cada troca de operação)
+document.addEventListener("input", saveState);
+document.addEventListener("change", saveState);
+
+window.addEventListener("load", () => {
+  renderOperacoes();
+  try {
+    const salva = localStorage.getItem("rda_companhia_escolhida");
+    if(salva) el("companhia").value = salva;
+  } catch(e) {}
+  const initial = "RDA";
+  el("operacao").value = SCHEMA[initial] ? initial : Object.keys(SCHEMA)[0];
+  renderForm(el("operacao").value);
+
+  el("operacao").addEventListener("change", () => {
+    renderForm(el("operacao").value);
+  });
+
+  el("companhia").addEventListener("change", () => {
+    if(__edit) { el("ciaPill").textContent = el("companhia").value; return; }
+    try { localStorage.setItem("rda_companhia_escolhida", el("companhia").value); } catch(e) {}
+    renderForm(el("operacao").value);
+  });
+});
+</script>
+</body>
+</html>
