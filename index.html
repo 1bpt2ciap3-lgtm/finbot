@@ -203,6 +203,7 @@ const GS_TOKEN = "aindapensonela";
 
 // Coleta tudo que o formulário gerou (campos dinâmicos + locais)
 function collectPayload() {
+  recalcTotais();
   const op = (el("operacao").value || ""); // aba/operação selecionada
   const payload = {
     versao: 5,
@@ -298,6 +299,35 @@ function gerarCodigo() {
 // ====== FIM ENVIO PARA PLANILHA ======
 
 function el(id) { return document.getElementById(id); }
+
+// ====== TOTAIS AUTOMÁTICOS ======
+// id do campo de total -> ids das parcelas que ele soma
+const TOTAIS = {
+  total_de_veiculos_fiscalizados: ["motocicleta_fiscalizada","automovel_fiscalizado_caminhonete_caminhoneta_e_utilitarios","caminhao_fiscalizado","onibus_fiscalizado","ciclomotor_fiscalizado","autopropelido_fiscalizado","bicicleta_eletrica_fiscalizada","outros_veiculos_fiscalizados"],
+  total_de_veiculos_removidos: ["motocicleta_removida","automovel_removido_caminhonete_caminhoneta_e_utilitarios","caminhao_removido","onibus_removido","ciclomotor_removido","outros_veiculos_removidos"],
+  total_de_autos_de_infracao_confeccionados: ["auto_de_infracao_confeccionado_detran_estado","auto_de_infracao_confeccionados_dsv_municipio","auto_de_infracao_dsv_confeccionados_municipio","auto_de_infracao_e_imposicao_de_penalidade_produtos_perigosos_aiippp","outras_autuacoes"]
+};
+
+function recalcTotais() {
+  const op = sanitizeKey(el("operacao").value || "RDA");
+  Object.keys(TOTAIS).forEach(tid => {
+    const t = document.getElementById("f_" + op + "_" + tid);
+    if(!t) return;
+    let soma = 0;
+    TOTAIS[tid].forEach(pid => {
+      const n = document.getElementById("f_" + op + "_" + pid);
+      if(n && n.value !== "") soma += Number(n.value) || 0;
+    });
+    t.value = soma ? String(soma) : "";
+  });
+}
+document.addEventListener("input", function(e) {
+  if(e.target && e.target.matches && e.target.matches("[data-rda-field='1']") && !e.target.dataset.auto) {
+    recalcTotais();
+    try { saveState(); } catch(err) {}
+  }
+});
+// ====== FIM TOTAIS AUTOMÁTICOS ======
 
 function toast(msg) {
   const t = el("toast");
@@ -475,10 +505,19 @@ function renderForm(op) {
       }
       const id = "f_" + sanitizeKey(op) + "_" + f.id;
       const div = document.createElement("div");
+      if(TOTAIS[f.id]) {
+        // TOTAL: o policial não preenche; é somado automaticamente (e enviado já correto)
+        div.innerHTML = `
+        <label for="${id}">${escapeHtml(f.label)}</label>
+        <input data-rda-field="1" data-auto="1" id="${id}" type="number" readonly tabindex="-1" placeholder="automático" style="background:#eef1f5;color:#4b5563;" />
+        <div style="font-size:11px;color:#6b7280;margin-top:2px;">Calculado automaticamente — não precisa preencher.</div>
+      `;
+      } else {
       div.innerHTML = `
         <label for="${id}">${escapeHtml(f.label)}</label>
         <input data-rda-field="1" id="${id}" ${f.type==="number" ? 'type="number" inputmode="numeric" placeholder="0"' : 'type="text" placeholder=""'} />
       `;
+      }
       wrap.appendChild(div);
     });
   });
@@ -498,6 +537,7 @@ function renderForm(op) {
     if(cfg.hasLoc) setLocaisState(null);
   }
 
+  recalcTotais();
   saveState();
 }
 
@@ -749,6 +789,7 @@ function entrarModoEdicao(cod, r) {
     if(t && porLabel[t] !== undefined) inp.value = porLabel[t];
   });
 
+  recalcTotais();   // totais voltam a ser a soma das parcelas
   el("operacao").disabled = true;
   el("ciaPill").textContent = el("companhia").value;
   let ateTxt = "";
